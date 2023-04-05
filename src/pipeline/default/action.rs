@@ -169,11 +169,11 @@ pub fn default_err_page(
 pub(crate) type FileUtilitySender<E> = mpsc::Sender<(PathBuf, Sender<Result<Bytes, E>>)>;
 
 pub fn generate_file_utility_thread() -> (FileUtilitySender<FileError>, JoinHandle<()>) {
+    // todo!() fn should take into account reads(aka RWLock)
+    // todo!() fn should have server wide caching
     let (tx,rx) = mpsc::channel::<(PathBuf, Sender<Result<Vec<u8>, FileError>>)>();
 
-
     let thread = thread::spawn(move || {
-
         loop {
 
             let (path, data_ch) = match rx.recv() {
