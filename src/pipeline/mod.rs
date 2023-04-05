@@ -1,8 +1,10 @@
-use std::{net::TcpListener, thread::JoinHandle, sync::mpsc::Sender};
+use std::{net::{TcpListener, TcpStream}, thread::JoinHandle, sync::mpsc::Sender};
+
+use log::trace;
 
 use crate::setting::{ServerSetting};
 
-use self::{utility_thread::UtilityThread, builder::Builder};
+use self::{utility_thread::UtilityThread, builder::Builder, pipeline::Pipeline};
 
 #[cfg(test)]
 mod tests;
@@ -31,10 +33,13 @@ impl<U: Clone + Send + 'static> Server<U> {
         }
     }
 
-    pub fn run(&self) {
+    pub fn run<const PIPELINES: usize>(&self) {
         //build pipeline
-        let (head, _pipeline) = self.builder.build();
+        let pipe_lines:[(Sender<TcpStream>, Pipeline<Sender<U>>); PIPELINES] = core::array::from_fn(|_| self.builder.build());
 
+        let mut i1:usize = 0; //should be replaced with min heap and used to select the least busy pipeline
+
+        // initialize tcp listener
         let listener =  {
             let listener = TcpListener::bind(
                 {
@@ -57,12 +62,16 @@ impl<U: Clone + Send + 'static> Server<U> {
             listener
         };
 
+
         for stream in listener.incoming() {
+            i1 = (i1 + 1) % PIPELINES;
+
             match stream{
                 Ok(stream) => {
-                    let _ = head.send(stream);
+                    let _ = pipe_lines[i1].0.send(stream);
                 }
-                Err(_) => {
+                Err(err) => {
+                    trace!("{}", err);
                     todo!()
                 }
             }
@@ -70,4 +79,3 @@ impl<U: Clone + Send + 'static> Server<U> {
         }
     }
 }
-
