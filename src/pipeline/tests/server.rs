@@ -2,7 +2,7 @@
 
 // default no compression pipeline test
 
-use std::{thread, collections::HashMap, net::TcpStream, io::{Write, Read}, sync::{Arc, Mutex, Condvar}, time::Duration};
+use std::{thread::{self, JoinHandle}, collections::HashMap, net::TcpStream, io::{Write, Read}, sync::{Arc, Mutex, Condvar, mpsc::Sender}, time::Duration, path::PathBuf};
 
 use log::trace;
 use serial_test::serial;
@@ -22,23 +22,15 @@ use crate::{
 const ADDRESS: &str = "localhost";
 const PORT: u16 = 8080;
 
-#[test]
-#[serial]
-fn default_one_request_one_pipeline() {
-    logger_init();
-
-    // create file environment
-    let _file_1 = FileEnv::new("source\\file_1.html", "hello_world");
-    
-    trace!("File environment created 📁");
-
-    let pair = Arc::new((Mutex::new(false), Condvar::new()));
-    let pair2 = Arc::clone(&pair);
-
-    // start server in separated thread
-    let server_thread = thread::spawn(move || {
-
-        let utility_thread = generate_file_utility_thread();
+fn server_initialization(
+    trigger_cond: Arc<(Mutex<bool>, Condvar)>,
+    parser: fn(&mut TcpStream) -> Result<Request, ResponseStatusCode>,
+    action: fn(&Result<Request, ResponseStatusCode>, ServerSetting, &mut Sender<(PathBuf, Sender<Result<Vec<u8>, FileError>>)>) -> Result<Response, ResponseStatusCode>,
+    compression: fn(Response, Option<Request>, ServerSetting) -> Vec<u8>,
+    utility_thread:  (Sender<(PathBuf, Sender<Result<Vec<u8>, FileError>>)>, JoinHandle<()>)
+) -> JoinHandle<()> {
+    thread::spawn(move || {
+        let utility_thread = utility_thread;
         trace!("Utility thread created 🛠️");
 
         let setting = ServerSetting {
@@ -60,36 +52,12 @@ fn default_one_request_one_pipeline() {
 
         trace!("Setting initialized ⚙️");
 
-        let test_parser = |stream: &mut TcpStream| {
-            trace!("Starting parsing 📄🔍");
-            let data = default::parser::<64,1024>(stream);
-            trace!("Finished parsing 📄🔍\n{:?}", data);
-
-            data
-        };
-
-        let test_action = |request: &Result<Request, ResponseStatusCode>, setting: ServerSetting, utility_thread: &mut FileUtilitySender<FileError>| {
-            trace!("Staring action 💪");
-            let data = default::action(request, setting, utility_thread);
-            trace!("Finished action 💪\n{:?}", data);
-
-            data
-        };
-
-        let test_no_compression = |response: Response, request: Option<Request>, settings: ServerSetting| {
-            trace!("Staring compression 💥");
-            let data = default::no_compression(response, request, settings);
-            trace!("Finished compression 💥");
-            
-            data
-        };
-
         //use builder to make server
         let builder = Builder::default()
             .set_settings(setting.clone())
-            .set_parser(test_parser)
-            .set_action(test_action)
-            .set_compression(test_no_compression)
+            .set_parser(parser)
+            .set_action(action)
+            .set_compression(compression)
             .set_utility_thread(utility_thread.0.clone());
 
         let server = Server::new(
@@ -101,19 +69,59 @@ fn default_one_request_one_pipeline() {
         trace!("Server built 💽🔨");
 
         {
-            let mut start = pair.0.lock().unwrap();
+            let mut start = trigger_cond.0.lock().unwrap();
 
             *start = true;
 
-            pair.1.notify_one()
+            trigger_cond.1.notify_one()
         }
 
         trace!("Server starting 💽🏃‍♂️");
         server.run::<1>();
-    });
+    })
+}
+
+#[test]
+#[serial]
+fn default_one_request_one_pipeline() {
+    //logger_init();
+
+    // create file environment
+    let _file_1 = FileEnv::new("source\\file_1.html", "hello_world");
+    
+    trace!("File environment created 📁");
+
+    let pair = Arc::new((Mutex::new(false), Condvar::new()));
+
+    // start server in separated thread
+    let server_thread = server_initialization(
+        Arc::clone(&pair),
+        |stream: &mut TcpStream| {
+            trace!("Starting parsing 📄🔍");
+            let data = default::parser::<64,1024>(stream);
+            trace!("Finished parsing 📄🔍\n{:?}", data);
+
+            data
+        },
+        |request: &Result<Request, ResponseStatusCode>, setting: ServerSetting, utility_thread: &mut FileUtilitySender<FileError>| {
+            trace!("Staring action 💪");
+            let data = default::action(request, setting, utility_thread);
+            trace!("Finished action 💪\n{:?}", data);
+
+            data
+        },
+        |response: Response, request: Option<Request>, settings: ServerSetting| {
+            trace!("Staring compression 💥");
+            let data = default::no_compression(response, request, settings);
+            trace!("Finished compression 💥");
+            
+            data
+        },
+        generate_file_utility_thread()
+    );
 
     {
-        let (lock, cvar) = &*pair2;
+        let (lock, cvar) = &*pair;
         let mut started = lock.lock().unwrap();
 
         while !*started {
@@ -152,7 +160,7 @@ fn default_one_request_one_pipeline() {
 #[test]
 #[serial]
 fn default_one_request_four_pipeline() {
-    logger_init();
+    //logger_init();
     
     // create file environment
     let _file_1 = FileEnv::new("source\\file_1.html", "hello_world");
@@ -160,88 +168,36 @@ fn default_one_request_four_pipeline() {
     trace!("File environment created 📁");
 
     let pair = Arc::new((Mutex::new(false), Condvar::new()));
-    let pair2 = Arc::clone(&pair);
-
 
     // start server in separated thread
-    let server_thread = thread::spawn(move || {
-
-        let utility_thread = generate_file_utility_thread();
-        trace!("Utility thread created 🛠️");
-
-        let setting = ServerSetting {
-            address: ADDRESS.to_string(),
-            port: PORT,
-            paths: {
-                let mut tmp = HashMap::new();
-
-                tmp.insert(
-                    String::from("localhost"),
-                    DomainPath{
-                        path: String::from(""),
-                        allow: vec![String::from("html")],
-                    }
-                );
-                tmp
-            }
-        };
-
-        trace!("Setting initialized ⚙️");
-
-        let test_parser = |stream: &mut TcpStream| {
+    let server_thread = server_initialization(
+        Arc::clone(&pair),
+        |stream: &mut TcpStream| {
             trace!("Starting parsing 📄🔍");
             let data = default::parser::<64,1024>(stream);
             trace!("Finished parsing 📄🔍\n{:?}", data);
 
             data
-        };
-
-        let test_action = |request: &Result<Request, ResponseStatusCode>, setting: ServerSetting, utility_thread: &mut FileUtilitySender<FileError>| {
+        },
+        |request: &Result<Request, ResponseStatusCode>, setting: ServerSetting, utility_thread: &mut FileUtilitySender<FileError>| {
             trace!("Staring action 💪");
             let data = default::action(request, setting, utility_thread);
             trace!("Finished action 💪\n{:?}", data);
 
             data
-        };
-
-        let test_no_compression = |response: Response, request: Option<Request>, settings: ServerSetting| {
+        },
+        |response: Response, request: Option<Request>, settings: ServerSetting| {
             trace!("Staring compression 💥");
             let data = default::no_compression(response, request, settings);
             trace!("Finished compression 💥");
             
             data
-        };
-
-        //use builder to make server
-        let builder = Builder::default()
-            .set_settings(setting.clone())
-            .set_parser(test_parser)
-            .set_action(test_action)
-            .set_compression(test_no_compression)
-            .set_utility_thread(utility_thread.0.clone());
-
-        let server = Server::new(
-            setting,
-            utility_thread,
-            builder
-        );
-
-        trace!("Server built 💽🔨");
-
-        {
-            let mut start = pair.0.lock().unwrap();
-
-            *start = true;
-
-            pair.1.notify_one()
-        }
-
-        trace!("Server starting 💽🏃‍♂️");
-        server.run::<4>();
-    });
+        },
+        generate_file_utility_thread()
+    );
 
     {
-        let (lock, cvar) = &*pair2;
+        let (lock, cvar) = &*pair;
         let mut started = lock.lock().unwrap();
 
         while !*started {
@@ -280,7 +236,7 @@ fn default_one_request_four_pipeline() {
 #[test]
 #[serial]
 fn default_four_request_one_pipeline() {
-    logger_init();
+    //logger_init();
 
     // create file environment
     let _file_1 = FileEnv::new("source\\request_1.html", "request 1");
@@ -291,87 +247,36 @@ fn default_four_request_one_pipeline() {
     trace!("File environment created 📁");
 
     let pair = Arc::new((Mutex::new(false), Condvar::new()));
-    let pair2 = Arc::clone(&pair);
 
     // start server in separated thread
-    let server_thread = thread::spawn(move || {
-
-        let utility_thread = generate_file_utility_thread();
-        trace!("Utility thread created 🛠️");
-
-        let setting = ServerSetting {
-            address: ADDRESS.to_string(),
-            port: PORT,
-            paths: {
-                let mut tmp = HashMap::new();
-
-                tmp.insert(
-                    String::from("localhost"),
-                    DomainPath{
-                        path: String::from(""),
-                        allow: vec![String::from("html")],
-                    }
-                );
-                tmp
-            }
-        };
-
-        trace!("Setting initialized ⚙️");
-
-        let test_parser = |stream: &mut TcpStream| {
+    let server_thread = server_initialization(
+        Arc::clone(&pair),
+        |stream: &mut TcpStream| {
             trace!("Starting parsing 📄🔍");
             let data = default::parser::<64,1024>(stream);
             trace!("Finished parsing 📄🔍\n{:?}", data);
 
             data
-        };
-
-        let test_action = |request: &Result<Request, ResponseStatusCode>, setting: ServerSetting, utility_thread: &mut FileUtilitySender<FileError>| {
+        },
+        |request: &Result<Request, ResponseStatusCode>, setting: ServerSetting, utility_thread: &mut FileUtilitySender<FileError>| {
             trace!("Staring action 💪");
             let data = default::action(request, setting, utility_thread);
             trace!("Finished action 💪\n{:?}", data);
 
             data
-        };
-
-        let test_no_compression = |response: Response, request: Option<Request>, settings: ServerSetting| {
+        },
+        |response: Response, request: Option<Request>, settings: ServerSetting| {
             trace!("Staring compression 💥");
             let data = default::no_compression(response, request, settings);
             trace!("Finished compression 💥");
             
             data
-        };
-
-        //use builder to make server
-        let builder = Builder::default()
-            .set_settings(setting.clone())
-            .set_parser(test_parser)
-            .set_action(test_action)
-            .set_compression(test_no_compression)
-            .set_utility_thread(utility_thread.0.clone());
-
-        let server = Server::new(
-            setting,
-            utility_thread,
-            builder
-        );
-
-        trace!("Server built 💽🔨");
-
-        {
-            let mut start = pair.0.lock().unwrap();
-
-            *start = true;
-
-            pair.1.notify_one()
-        }
-
-        trace!("Server starting 💽🏃‍♂️");
-        server.run::<1>();
-    });
+        },
+        generate_file_utility_thread()
+    );
 
     {
-        let (lock, cvar) = &*pair2;
+        let (lock, cvar) = &*pair;
         let mut started = lock.lock().unwrap();
 
         while !*started {
