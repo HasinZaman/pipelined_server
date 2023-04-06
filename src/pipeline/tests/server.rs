@@ -315,3 +315,103 @@ fn default_four_request_one_pipeline() {
         }
     }
 }
+
+#[test]
+#[serial]
+fn default_eight_request_four_pipeline() {
+    logger_init();
+
+    // create file environment
+    let _file_1 = FileEnv::new("source\\request_1.html", "request 1");
+    let _file_2 = FileEnv::new("source\\request_2.html", "request 2");
+    let _file_3 = FileEnv::new("source\\request_3.html", "request 3");
+    let _file_4 = FileEnv::new("source\\request_4.html", "request 4");
+    
+    trace!("File environment created 📁");
+
+    let pair = Arc::new((Mutex::new(false), Condvar::new()));
+
+    // start server in separated thread
+    let server_thread = server_initialization(
+        Arc::clone(&pair),
+        |stream: &mut TcpStream| {
+            trace!("Starting parsing 📄🔍");
+            let data = default::parser::<64,1024>(stream);
+            trace!("Finished parsing 📄🔍\n{:?}", data);
+
+            data
+        },
+        |request: &Result<Request, ResponseStatusCode>, setting: ServerSetting, utility_thread: &mut FileUtilitySender<FileError>| {
+            trace!("Staring action 💪");
+            let data = default::action(request, setting, utility_thread);
+            trace!("Finished action 💪\n{:?}", data);
+
+            data
+        },
+        |response: Response, request: Option<Request>, settings: ServerSetting| {
+            trace!("Staring compression 💥");
+            let data = default::no_compression(response, request, settings);
+            trace!("Finished compression 💥");
+            
+            data
+        },
+        generate_file_utility_thread()
+    );
+
+    {
+        let (lock, cvar) = &*pair;
+        let mut started = lock.lock().unwrap();
+
+        while !*started {
+            started = cvar.wait(started).unwrap();
+        }
+    }
+    trace!("Server test initiated 🤞");
+
+    // send request
+    {//
+        let mut streams:Vec<JoinHandle<()>> = (0..8)
+            .map(
+                |i| {
+                    let mut stream = TcpStream::connect(format!("{}:{}", ADDRESS, PORT)).unwrap();
+                    
+                    trace!("Request {} sent 💽 📃💨 💻", i+1);
+                    let _ = stream.write(format!("GET request_{}.html HTTP/1.1\n\rhost:localhost", (i%4) + 1).as_bytes());
+
+                    thread::spawn(
+                        move|| {
+                            let mut data = [0; 128];
+                            stream.read(&mut data).unwrap();
+                            trace!("Response {} received 💻 📃💨 💽", i+1);
+                    
+                            let response = String::from_utf8(data.to_vec());
+                    
+                            assert!(response.is_ok());
+                    
+                            let response = response.unwrap();
+                            let response = response.trim_end_matches("\0");
+                    
+                            trace!("{}", response);
+                    
+                            assert_eq!(response, format!("HTTP/1.1 200 Ok\r\nContent-Length: 9\r\nContent-Type: text/html\r\n\r\nrequest {}", (i%4) + 1));
+                        }
+                    )
+                }
+            ).collect();
+        while streams.len() > 0 {
+            for i in (0..streams.len()).rev() {
+                if streams[i].is_finished() {
+                    let steam = streams.pop().unwrap();
+
+                    match steam.join() {
+                        Ok(_) => assert!(true),
+                        Err(err) => {
+                            println!("{:?}", err);
+                            assert!(false);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
