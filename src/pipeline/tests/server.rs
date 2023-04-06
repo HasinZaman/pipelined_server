@@ -2,7 +2,7 @@
 
 // default no compression pipeline test
 
-use std::{thread::{self, JoinHandle}, collections::HashMap, net::TcpStream, io::{Write, Read}, sync::{Arc, Mutex, Condvar, mpsc::Sender}, time::Duration, path::PathBuf};
+use std::{thread::{self, JoinHandle}, collections::HashMap, net::TcpStream, io::{Write, Read}, sync::{Arc, Mutex, Condvar, mpsc::Sender, RwLock}, time::Duration, path::PathBuf};
 
 use log::trace;
 use serial_test::serial;
@@ -430,9 +430,12 @@ fn default_eight_request_four_pipeline() {
 fn default_eight_request_four_pipeline_two_file() {
     logger_init();
 
+    let file_1_content = Arc::new(RwLock::new(create_mb_string(100)));
+    let file_2_content = Arc::new(RwLock::new(create_mb_string(10)));
+
     // create file environment
-    let _file_1 = FileEnv::new("source\\request_1.html", "request 1");
-    let _file_2 = FileEnv::new("source\\request_2.html", &create_mb_string(10));
+    let _file_1 = FileEnv::new("source\\request_1.html", &*file_1_content.read().unwrap());
+    let _file_2 = FileEnv::new("source\\request_2.html", &*file_2_content.read().unwrap());
     
     trace!("File environment created 📁");
 
@@ -480,15 +483,18 @@ fn default_eight_request_four_pipeline_two_file() {
         let mut streams:Vec<JoinHandle<()>> = (0..8)
             .map(
                 |i| {
-                    let file_2_str = create_mb_string(10);
                     let mut stream = TcpStream::connect(format!("{}:{}", ADDRESS, PORT)).unwrap();
                     
                     trace!("Request {} sent 💽 📃💨 💻", i+1);
                     let _ = stream.write(format!("GET request_{}.html HTTP/1.1\n\rhost:localhost", (i%2) + 1).as_bytes());
 
+                    let file_1_content = file_1_content.clone();
+                    let file_2_content = file_2_content.clone();
+
                     thread::spawn(
                         move|| {
-
+                            let file_1_content = &*file_1_content.read().unwrap();
+                            let file_2_content = &*file_2_content.read().unwrap();
                             let mut data_buffer = [0; 128];
                             let mut response = String::new();
                             while let Ok(size) = stream.read(&mut data_buffer) {
@@ -505,10 +511,10 @@ fn default_eight_request_four_pipeline_two_file() {
                     
                             match i%2 {
                                 0 => {
-                                    assert_eq!(response, format!("HTTP/1.1 200 Ok\r\nContent-Length: 9\r\nContent-Type: text/html\r\n\r\nrequest 1"));
+                                    assert_eq!(response, format!("HTTP/1.1 200 Ok\r\nContent-Length: {}\r\nContent-Type: text/html\r\n\r\n{}", file_1_content.len(), file_1_content));
                                 },
                                 1 => {
-                                    assert_eq!(response, format!("HTTP/1.1 200 Ok\r\nContent-Length: {}\r\nContent-Type: text/html\r\n\r\n{}", file_2_str.len(), &file_2_str));
+                                    assert_eq!(response, format!("HTTP/1.1 200 Ok\r\nContent-Length: {}\r\nContent-Type: text/html\r\n\r\n{}", file_2_content.len(), file_2_content));
                                 },
                                 _ => panic!()
                             }
