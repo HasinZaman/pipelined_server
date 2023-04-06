@@ -81,6 +81,15 @@ fn server_initialization(
     })
 }
 
+fn create_mb_string(n: usize) -> String {
+    let mb_size = n * 1024 * 1024; // convert MB to bytes
+    let mut s = String::with_capacity(mb_size);
+    for _ in 0..mb_size {
+        s.push('a');
+    }
+    s
+}
+
 #[test]
 #[serial]
 fn default_one_request_one_pipeline() {
@@ -423,7 +432,7 @@ fn default_eight_request_four_pipeline_two_file() {
 
     // create file environment
     let _file_1 = FileEnv::new("source\\request_1.html", "request 1");
-    let _file_2 = FileEnv::new("source\\request_2.html", "request 2");
+    let _file_2 = FileEnv::new("source\\request_2.html", &create_mb_string(10));
     
     trace!("File environment created 📁");
 
@@ -442,7 +451,7 @@ fn default_eight_request_four_pipeline_two_file() {
         |request: &Result<Request, ResponseStatusCode>, setting: ServerSetting, utility_thread: &mut FileUtilitySender<FileError>| {
             trace!("Staring action 💪");
             let data = default::action(request, setting, utility_thread);
-            trace!("Finished action 💪\n{:?}", data);
+            trace!("Finished action 💪");
 
             data
         },
@@ -467,10 +476,11 @@ fn default_eight_request_four_pipeline_two_file() {
     trace!("Server test initiated 🤞");
 
     // send request
-    {//
+    {
         let mut streams:Vec<JoinHandle<()>> = (0..8)
             .map(
                 |i| {
+                    let file_2_str = create_mb_string(10);
                     let mut stream = TcpStream::connect(format!("{}:{}", ADDRESS, PORT)).unwrap();
                     
                     trace!("Request {} sent 💽 📃💨 💻", i+1);
@@ -478,20 +488,30 @@ fn default_eight_request_four_pipeline_two_file() {
 
                     thread::spawn(
                         move|| {
-                            let mut data = [0; 128];
-                            stream.read(&mut data).unwrap();
+
+                            let mut data_buffer = [0; 128];
+                            let mut response = String::new();
+                            while let Ok(size) = stream.read(&mut data_buffer) {
+                                if size == 0 {
+                                    // Stop the TCP listener when the stream stops receiving data
+                                    break;
+                                }
+                                let data = &data_buffer[..size];
+
+                                let data_str = String::from_utf8(data.to_vec()).unwrap();
+                                response.push_str(&data_str.trim_end_matches('\0'));
+                            }
                             trace!("Response {} received 💻 📃💨 💽", i+1);
                     
-                            let response = String::from_utf8(data.to_vec());
-                    
-                            assert!(response.is_ok());
-                    
-                            let response = response.unwrap();
-                            let response = response.trim_end_matches("\0");
-                    
-                            trace!("{}", response);
-                    
-                            assert_eq!(response, format!("HTTP/1.1 200 Ok\r\nContent-Length: 9\r\nContent-Type: text/html\r\n\r\nrequest {}", (i%2) + 1));
+                            match i%2 {
+                                0 => {
+                                    assert_eq!(response, format!("HTTP/1.1 200 Ok\r\nContent-Length: 9\r\nContent-Type: text/html\r\n\r\nrequest 1"));
+                                },
+                                1 => {
+                                    assert_eq!(response, format!("HTTP/1.1 200 Ok\r\nContent-Length: {}\r\nContent-Type: text/html\r\n\r\n{}", file_2_str.len(), &file_2_str));
+                                },
+                                _ => panic!()
+                            }
                         }
                     )
                 }
