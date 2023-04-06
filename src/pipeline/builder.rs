@@ -5,7 +5,7 @@ use std::{
         mpsc::{self, Sender},
         Arc, Mutex, RwLock,
     },
-    thread::{self}, ops::Receiver,
+    thread::{self},
 };
 
 use cyclic_data_types::list::List;
