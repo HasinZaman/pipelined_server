@@ -10,7 +10,7 @@ use serial_test::serial;
 use crate::{
     pipeline::{
         builder::Builder,
-        default::{self, action::{generate_file_utility_thread, FileUtilitySender}}, Server
+        default::{self, action::{generate_read_only_file_utility_thread, FileUtilitySender}}, Server
     },
     setting::{
         ServerSetting,
@@ -117,7 +117,7 @@ fn default_one_request_one_pipeline() {
             
             data
         },
-        generate_file_utility_thread()
+        generate_read_only_file_utility_thread()
     );
 
     {
@@ -193,7 +193,7 @@ fn default_one_request_four_pipeline() {
             
             data
         },
-        generate_file_utility_thread()
+        generate_read_only_file_utility_thread()
     );
 
     {
@@ -272,7 +272,7 @@ fn default_four_request_one_pipeline() {
             
             data
         },
-        generate_file_utility_thread()
+        generate_read_only_file_utility_thread()
     );
 
     {
@@ -332,7 +332,7 @@ fn default_eight_request_four_pipeline() {
     let pair = Arc::new((Mutex::new(false), Condvar::new()));
 
     // start server in separated thread
-    let server_thread = server_initialization(
+    let _server_thread = server_initialization(
         Arc::clone(&pair),
         |stream: &mut TcpStream| {
             trace!("Starting parsing 📄🔍");
@@ -355,7 +355,7 @@ fn default_eight_request_four_pipeline() {
             
             data
         },
-        generate_file_utility_thread()
+        generate_read_only_file_utility_thread()
     );
 
     {
