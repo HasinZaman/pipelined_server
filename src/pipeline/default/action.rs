@@ -168,28 +168,32 @@ pub fn default_err_page(
 }
 pub(crate) type FileUtilitySender<E> = mpsc::Sender<(PathBuf, Sender<Result<Bytes, E>>)>;
 
-pub fn generate_file_utility_thread() -> (FileUtilitySender<FileError>, JoinHandle<()>) {
+pub fn generate_read_only_file_utility_thread() -> (FileUtilitySender<FileError>, JoinHandle<()>) {
     // todo!() fn should take into account reads(aka RWLock)
     // todo!() fn should have server wide caching
     let (tx,rx) = mpsc::channel::<(PathBuf, Sender<Result<Vec<u8>, FileError>>)>();
 
     let thread = thread::spawn(move || {
+        let mut threads = Vec::new();
         loop {
 
-            let (path, data_ch) = match rx.recv() {
-                Ok(val) => val,
-                Err(_) => {
-                    //send error
-                    todo!();
-                    continue;
-                },
-            };
+            if let Ok((path, data_ch)) = rx.try_recv() {
+                //get file data
+                threads.push(
+                    thread::spawn(
+                        move || {
+                            let _ = data_ch.send(match read(path) {
+                                Ok(bytes) => Ok(bytes),
+                                Err(_err) => Err(FileError::FileDoesNotExist),
+                            });
+                        }
+                    )
+                );
+            }
 
-            //get file data
-            let _ = data_ch.send(match read(path) {
-                Ok(bytes) => Ok(bytes),
-                Err(_err) => Err(FileError::FileDoesNotExist),
-            });
+            if threads.iter().any(|t| t.is_finished()) {
+                threads = threads.into_iter().filter(|t| !t.is_finished()).collect();
+            }
         }
     });
 
