@@ -5,8 +5,10 @@ use std::{
         mpsc::{self, Sender},
         Arc, Mutex, RwLock,
     },
-    thread::{self},
+    thread::{self}, ops::Receiver,
 };
+
+use cyclic_data_types::list::List;
 
 use crate::{
     http::{
@@ -236,16 +238,8 @@ fn build_compressor(
     let thread = thread::spawn(move || {
         let input_queue = input_queue_tmp;
         loop {
-            //get control of input queue
-            let mut input_queue = match input_queue.try_lock() {
-                Ok(val) => val,
-                Err(_) => continue,
-            };
-
-            let input_queue = &mut *input_queue;
-
             //get first element in queue
-            let (stream, response, request) = match input_queue.remove_front() {
+            let (stream, response, request) = match dequeue(&input_queue) {
                 Some(value) => value,
                 None => continue,
             };
@@ -271,16 +265,8 @@ fn build_sender() -> (Arc<Mutex<SenderQueue>>, SenderComponent) {
     let thread = thread::spawn(move || {
         let input_queue = input_queue_tmp;
         loop {
-            //get control of input queue
-            let mut input_queue = match input_queue.try_lock() {
-                Ok(val) => val,
-                Err(_) => continue,
-            };
-
-            let input_queue = &mut *input_queue;
-
             //get first element in queue
-            let (mut stream, bytes) = match input_queue.remove_front() {
+            let (mut stream, bytes) = match dequeue(&input_queue) {
                 Some(value) => value,
                 None => continue,
             };
@@ -299,4 +285,18 @@ fn build_sender() -> (Arc<Mutex<SenderQueue>>, SenderComponent) {
     let component = Component::new(input_queue.clone(), thread);
 
     (input_queue, component)
+}
+
+fn dequeue<const T: usize, U>(queue: &Arc<Mutex<List<T, U, false>>>) -> Option<U> {
+    // functions ensures locking is localized to function rather than lifetime of loop
+    // with the goal of minimizing chance of poisoning lock
+    let mut input_queue = match queue.try_lock() {
+        Ok(val) => val,
+        Err(_) => return None,
+    };
+
+    let input_queue = &mut *input_queue;
+
+    //get first element in queue
+    input_queue.remove_front()
 }
