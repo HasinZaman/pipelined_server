@@ -10,7 +10,7 @@ use serial_test::serial;
 use crate::{
     pipeline::{
         builder::Builder,
-        default::{self, action::{generate_read_only_file_utility_thread, FileUtilitySender}}, Server
+        default::{self, action::{generate_read_only_file_utility_thread, FileUtilitySender, NO_BOUND}}, Server
     },
     setting::{
         ServerSetting,
@@ -126,7 +126,7 @@ fn default_one_request_one_pipeline() {
             
             data
         },
-        generate_read_only_file_utility_thread()
+        generate_read_only_file_utility_thread::<NO_BOUND>()
     );
 
     {
@@ -202,7 +202,7 @@ fn default_one_request_four_pipeline() {
             
             data
         },
-        generate_read_only_file_utility_thread()
+        generate_read_only_file_utility_thread::<NO_BOUND>()
     );
 
     {
@@ -281,7 +281,7 @@ fn default_four_request_one_pipeline() {
             
             data
         },
-        generate_read_only_file_utility_thread()
+        generate_read_only_file_utility_thread::<NO_BOUND>()
     );
 
     {
@@ -364,7 +364,7 @@ fn default_eight_request_four_pipeline() {
             
             data
         },
-        generate_read_only_file_utility_thread()
+        generate_read_only_file_utility_thread::<NO_BOUND>()
     );
 
     {
@@ -465,7 +465,7 @@ fn default_eight_request_four_pipeline_two_file() {
             
             data
         },
-        generate_read_only_file_utility_thread()
+        generate_read_only_file_utility_thread::<NO_BOUND>()
     );
 
     {

@@ -4,7 +4,7 @@ use std::{
     sync::{
         mpsc::{self, Receiver, Sender},
         RwLock,
-    }, thread::{self, JoinHandle}, fs::read,
+    }, thread::{self, JoinHandle}, fs::read, mem,
 };
 
 use log::{trace, info, warn, error};
@@ -168,32 +168,47 @@ pub fn default_err_page(
 }
 pub(crate) type FileUtilitySender<E> = mpsc::Sender<(PathBuf, Sender<Result<Bytes, E>>)>;
 
-pub fn generate_read_only_file_utility_thread() -> (FileUtilitySender<FileError>, JoinHandle<()>) {
+pub const NO_BOUND: usize = 0;
+pub fn generate_read_only_file_utility_thread<const MAX_READS: usize>() -> (FileUtilitySender<FileError>, JoinHandle<()>) {
     // todo!() fn should take into account reads(aka RWLock)
     // todo!() fn should have server wide caching
     let (tx,rx) = mpsc::channel::<(PathBuf, Sender<Result<Vec<u8>, FileError>>)>();
 
     let thread = thread::spawn(move || {
         let mut threads = Vec::new();
+        let mut cache: Option<(PathBuf, Sender<Result<Vec<u8>, FileError>>)> = Option::None;
         loop {
+            match cache {
+                Some(_) => {
+                    if MAX_READS == 0 || threads.len() <= MAX_READS {
+                            
+                        let mut tmp = None;
 
-            if let Ok((path, data_ch)) = rx.try_recv() {
-                //get file data
-                threads.push(
-                    thread::spawn(
-                        move || {
-                            let _ = data_ch.send(match read(path) {
-                                Ok(bytes) => Ok(bytes),
-                                Err(_err) => Err(FileError::FileDoesNotExist),
-                            });
-                        }
-                    )
-                );
-            }
+                        mem::swap(&mut cache, &mut tmp);
 
-            if threads.iter().any(|t| t.is_finished()) {
-                threads = threads.into_iter().filter(|t| !t.is_finished()).collect();
+                        let (path, data_ch) = tmp.unwrap();
+                        
+                        threads.push(
+                            thread::spawn(
+                                move || {
+                                    let _ = data_ch.send(match read(path) {
+                                        Ok(bytes) => Ok(bytes),
+                                        Err(_err) => Err(FileError::FileDoesNotExist),
+                                    });
+                                }
+                            )
+                        );
+                    }
+
+                },
+                None => {
+                    if let Ok(val) = rx.try_recv() {
+                        cache = Some(val);
+                    }
+                },
             }
+            
+            threads = threads.into_iter().filter(|t| !t.is_finished()).collect();
         }
     });
 
