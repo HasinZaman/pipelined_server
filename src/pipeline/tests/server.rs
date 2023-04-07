@@ -356,7 +356,7 @@ fn default_four_request_one_pipeline() {
 #[test]
 #[serial]
 fn default_eight_request_four_pipeline() {
-    logger_init();
+    //logger_init();
 
     // create file environment
     let _file_1 = FileEnv::new("source\\request_1.html", "request 1");
