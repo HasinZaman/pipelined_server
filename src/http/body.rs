@@ -110,7 +110,7 @@ impl TryFrom<&str> for ContentType {
         println!("{}", value);
         match value {
             "html" => Ok(Self::Text(Text::html)),
-            _ => todo!()
+            _ => todo!(),
         }
     }
 }

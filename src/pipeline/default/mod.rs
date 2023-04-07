@@ -1,13 +1,9 @@
 use crate::{
-    http::{
-        request::Request,
-        response::{Response}, body::Body,
-    }, setting::ServerSetting,
+    http::{body::Body, request::Request, response::Response},
+    setting::ServerSetting,
 };
 
-
-
-use super::{pipeline::Bytes};
+use super::pipeline::Bytes;
 
 pub mod action;
 mod parser;
@@ -15,33 +11,37 @@ mod parser;
 #[cfg(test)]
 mod tests;
 
-use flate2::{Compression, write::{GzEncoder, DeflateEncoder, ZlibEncoder}};
-use std::io::Write;
+pub use action::default_action as action;
+use flate2::{
+    write::{DeflateEncoder, GzEncoder, ZlibEncoder},
+    Compression,
+};
 use log::trace;
 pub use parser::parser;
-pub use action::default_action as action;
+use std::io::Write;
 
 pub fn no_compression(response: Response, _: Option<Request>, _: ServerSetting) -> Bytes {
-    return response.as_bytes()
+    return response.as_bytes();
 }
 
 pub fn compression(mut response: Response, request: Request, setting: ServerSetting) -> Bytes {
     if let None = response.body {
-        return response.as_bytes()
+        return response.as_bytes();
     }
-    
-    
+
     let request_header = &request.1;
 
     if !request_header.contains_key("accept-encoding") {
-        return response.as_bytes()
+        return response.as_bytes();
     }
-    
+
     let mut body_content = response.body.clone().unwrap().content;
 
-    let accepted = request_header.get("accept-encoding").unwrap()
-            .to_string()
-            .replace(' ', "");
+    let accepted = request_header
+        .get("accept-encoding")
+        .unwrap()
+        .to_string()
+        .replace(' ', "");
 
     trace!("accepted encoder:{:?}", accepted);
 
@@ -52,37 +52,43 @@ pub fn compression(mut response: Response, request: Request, setting: ServerSett
                 encoder.write(&body_content);
 
                 body_content = encoder.finish().unwrap();
-                response.header.insert(String::from("Content-Encoding"), String::from("gzip"));
+                response
+                    .header
+                    .insert(String::from("Content-Encoding"), String::from("gzip"));
                 break;
-            },
+            }
             "deflate" => {
                 let mut encoder = DeflateEncoder::new(Vec::new(), Compression::default());
                 encoder.write(&body_content);
 
                 body_content = encoder.finish().unwrap();
-                response.header.insert(String::from("Content-Encoding"), String::from("deflate"));
+                response
+                    .header
+                    .insert(String::from("Content-Encoding"), String::from("deflate"));
                 break;
-            },
+            }
             "zlib" => {
                 let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
                 encoder.write(&body_content);
 
                 body_content = encoder.finish().unwrap();
-                response.header.insert(String::from("Content-Encoding"), String::from("zlib"));
+                response
+                    .header
+                    .insert(String::from("Content-Encoding"), String::from("zlib"));
                 break;
-            },
+            }
             _ => {
                 //no compression
             }
         }
     }
 
-    response.body = Some(Body{
+    response.body = Some(Body {
         content_type: response.body.unwrap().content_type,
         content: body_content,
     });
-    
-    return response.as_bytes()
+
+    return response.as_bytes();
 }
 
 // impl Default for Builder<FileUtility> {

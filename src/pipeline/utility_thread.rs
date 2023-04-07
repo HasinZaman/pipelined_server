@@ -5,10 +5,11 @@ use std::{
     thread::{self, JoinHandle},
 };
 
-
 #[macro_export]
 macro_rules! UtilityThreadBuilder {
-    () => {todo!()}
+    () => {
+        todo!()
+    };
 }
 
 pub struct UtilityThread<C: Sized + Sync + Send, V> {

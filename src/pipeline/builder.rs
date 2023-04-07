@@ -15,7 +15,7 @@ use crate::{
         request::Request,
         response::{response_status_code::ResponseStatusCode, Response},
     },
-    setting::{ServerSetting},
+    setting::ServerSetting,
 };
 
 use super::{
@@ -39,7 +39,7 @@ pub struct Builder<U: Clone> {
     pub action: Option<ActionFunc<U>>,
     pub compression: Option<CompressionFunc>,
     pub utility_sender: Option<mpsc::Sender<U>>,
-    pub settings: Option<Arc<RwLock<ServerSetting>>>
+    pub settings: Option<Arc<RwLock<ServerSetting>>>,
 }
 
 impl<U: Clone + Send + 'static> Builder<U> {
@@ -74,7 +74,6 @@ impl<U: Clone + Send + 'static> Builder<U> {
     }
 
     pub fn build(&self) -> (Sender<TcpStream>, Pipeline<mpsc::Sender<U>>) {
-        
         //building components back to front to deal with input queue dependencies & ownership issues
         let (sender_queue, sender) = build_sender();
 
@@ -82,13 +81,22 @@ impl<U: Clone + Send + 'static> Builder<U> {
         if self.compression.is_none() {
             todo!()
         }
-        let (compressor_queue, compression) = build_compressor(self.compression.unwrap(), sender_queue, &self.settings.clone().unwrap());
+        let (compressor_queue, compression) = build_compressor(
+            self.compression.unwrap(),
+            sender_queue,
+            &self.settings.clone().unwrap(),
+        );
 
         //build action
         if self.action.is_none() || self.utility_sender.is_none() || self.settings.is_none() {
             todo!()
         }
-        let (action_queue, action) = build_action(self.action.unwrap(), compressor_queue, self.utility_sender.clone().unwrap(), &self.settings.clone().unwrap());
+        let (action_queue, action) = build_action(
+            self.action.unwrap(),
+            compressor_queue,
+            self.utility_sender.clone().unwrap(),
+            &self.settings.clone().unwrap(),
+        );
 
         //build parser
         if self.parser.is_none() {
@@ -120,7 +128,7 @@ impl<U: Clone + Send + 'static> Default for Builder<U> {
             action: None,
             compression: None,
             utility_sender: None,
-            settings: None
+            settings: None,
         }
     }
 }
@@ -174,7 +182,7 @@ fn build_action<U: Send + 'static>(
     func: ActionFunc<U>,
     output_queue: Arc<Mutex<CompressionQueue>>,
     utility_access: mpsc::Sender<U>,
-    settings: &Arc<RwLock<ServerSetting>>
+    settings: &Arc<RwLock<ServerSetting>>,
 ) -> (Arc<Mutex<ActionQueue>>, ActionComponent) {
     let input_queue = Arc::new(Mutex::new(ActionQueue::default()));
 
@@ -204,13 +212,12 @@ fn build_action<U: Send + 'static>(
 
             //action upon data
             let server_settings = (&*server_settings.read().unwrap()).clone();
-            match func(
-                &action_cmd,
-                server_settings,
-                &mut utility_access,
-            ) {
+            match func(&action_cmd, server_settings, &mut utility_access) {
                 Ok(val) => {
-                    let _ = output_queue.lock().unwrap().push_back((stream, val, action_cmd.ok()));
+                    let _ = output_queue
+                        .lock()
+                        .unwrap()
+                        .push_back((stream, val, action_cmd.ok()));
                 }
                 Err(err) => {
                     let _ = input_queue.push_front((stream, Err(err))); //convert error into raw bytes
@@ -227,7 +234,7 @@ fn build_action<U: Send + 'static>(
 fn build_compressor(
     func: CompressionFunc,
     output_queue: Arc<Mutex<SenderQueue>>,
-    settings: &Arc<RwLock<ServerSetting>>
+    settings: &Arc<RwLock<ServerSetting>>,
 ) -> (Arc<Mutex<CompressionQueue>>, CompressionComponent) {
     let input_queue = Arc::new(Mutex::new(CompressionQueue::default()));
 

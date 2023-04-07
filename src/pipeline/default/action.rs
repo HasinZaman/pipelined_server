@@ -1,13 +1,16 @@
 use std::{
     collections::HashMap,
+    fs::read,
+    mem,
     path::PathBuf,
     sync::{
         mpsc::{self, Receiver, Sender},
         RwLock,
-    }, thread::{self, JoinHandle}, fs::read, mem,
+    },
+    thread::{self, JoinHandle},
 };
 
-use log::{trace, info, warn, error};
+use log::{error, info, trace, warn};
 
 use crate::{
     file::{self, FileError},
@@ -169,10 +172,11 @@ pub fn default_err_page(
 pub(crate) type FileUtilitySender<E> = mpsc::Sender<(PathBuf, Sender<Result<Bytes, E>>)>;
 
 pub const NO_BOUND: usize = 0;
-pub fn generate_read_only_file_utility_thread<const MAX_READS: usize>() -> (FileUtilitySender<FileError>, JoinHandle<()>) {
+pub fn generate_read_only_file_utility_thread<const MAX_READS: usize>(
+) -> (FileUtilitySender<FileError>, JoinHandle<()>) {
     // todo!() fn should take into account reads(aka RWLock)
     // todo!() fn should have server wide caching
-    let (tx,rx) = mpsc::channel::<(PathBuf, Sender<Result<Vec<u8>, FileError>>)>();
+    let (tx, rx) = mpsc::channel::<(PathBuf, Sender<Result<Vec<u8>, FileError>>)>();
 
     let thread = thread::spawn(move || {
         let mut threads = Vec::new();
@@ -181,38 +185,32 @@ pub fn generate_read_only_file_utility_thread<const MAX_READS: usize>() -> (File
             match cache {
                 Some(_) => {
                     if MAX_READS == 0 || threads.len() <= MAX_READS {
-                            
                         let mut tmp = None;
 
                         mem::swap(&mut cache, &mut tmp);
 
                         let (path, data_ch) = tmp.unwrap();
-                        
-                        threads.push(
-                            thread::spawn(
-                                move || {
-                                    let _ = data_ch.send(match read(path) {
-                                        Ok(bytes) => Ok(bytes),
-                                        Err(_err) => Err(FileError::FileDoesNotExist),
-                                    });
-                                }
-                            )
-                        );
-                    }
 
-                },
+                        threads.push(thread::spawn(move || {
+                            let _ = data_ch.send(match read(path) {
+                                Ok(bytes) => Ok(bytes),
+                                Err(_err) => Err(FileError::FileDoesNotExist),
+                            });
+                        }));
+                    }
+                }
                 None => {
                     if let Ok(val) = rx.try_recv() {
                         cache = Some(val);
                     }
-                },
+                }
             }
-            
+
             threads = threads.into_iter().filter(|t| !t.is_finished()).collect();
         }
     });
 
-    return (tx, thread)
+    return (tx, thread);
 }
 
 pub fn default_get_logic(
@@ -244,7 +242,7 @@ pub fn default_get_logic(
         _ => {
             error!("Invalid request method in Get function");
             panic!("Invalid Request")
-        }, //return Err(ResponseStatusCode::Forbidden),
+        } //return Err(ResponseStatusCode::Forbidden),
     };
 
     let path = match file {
@@ -254,11 +252,11 @@ pub fn default_get_logic(
                 FileError::FileDoesNotExist => {
                     info!("File does not exist");
                     Err(ResponseStatusCode::NotFound)
-                },
+                }
                 FileError::InaccessibleExtension => {
                     info!("Invalid file extension");
                     Err(ResponseStatusCode::Forbidden)
-                },
+                }
             }
         }
     };

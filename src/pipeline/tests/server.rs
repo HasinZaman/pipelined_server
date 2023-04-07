@@ -1,22 +1,35 @@
-
-
 // default no compression pipeline test
 
-use std::{thread::{self, JoinHandle}, collections::HashMap, net::TcpStream, io::{Write, Read}, sync::{Arc, Mutex, Condvar, mpsc::Sender, RwLock}, time::Duration, path::PathBuf};
+use std::{
+    collections::HashMap,
+    io::{Read, Write},
+    net::TcpStream,
+    path::PathBuf,
+    sync::{mpsc::Sender, Arc, Condvar, Mutex, RwLock},
+    thread::{self, JoinHandle},
+    time::Duration,
+};
 
 use log::trace;
 use serial_test::serial;
 
 use crate::{
+    file::FileError,
+    http::{
+        request::Request,
+        response::{response_status_code::ResponseStatusCode, Response},
+    },
+    logging::logger_init,
     pipeline::{
         builder::Builder,
-        default::{self, action::{generate_read_only_file_utility_thread, FileUtilitySender, NO_BOUND}}, Server
+        default::{
+            self,
+            action::{generate_read_only_file_utility_thread, FileUtilitySender, NO_BOUND},
+        },
+        Server,
     },
-    setting::{
-        ServerSetting,
-        DomainPath
-    },
-    test_tools::file_env::FileEnv, file::FileError, http::{request::Request, response::{response_status_code::ResponseStatusCode, Response}}, logging::logger_init
+    setting::{DomainPath, ServerSetting},
+    test_tools::file_env::FileEnv,
 };
 
 const ADDRESS: &str = "localhost";
@@ -25,9 +38,16 @@ const PORT: u16 = 8080;
 fn server_initialization(
     trigger_cond: Arc<(Mutex<bool>, Condvar)>,
     parser: fn(&mut TcpStream) -> Result<Request, ResponseStatusCode>,
-    action: fn(&Result<Request, ResponseStatusCode>, ServerSetting, &mut Sender<(PathBuf, Sender<Result<Vec<u8>, FileError>>)>) -> Result<Response, ResponseStatusCode>,
+    action: fn(
+        &Result<Request, ResponseStatusCode>,
+        ServerSetting,
+        &mut Sender<(PathBuf, Sender<Result<Vec<u8>, FileError>>)>,
+    ) -> Result<Response, ResponseStatusCode>,
     compression: fn(Response, Option<Request>, ServerSetting) -> Vec<u8>,
-    utility_thread:  (Sender<(PathBuf, Sender<Result<Vec<u8>, FileError>>)>, JoinHandle<()>)
+    utility_thread: (
+        Sender<(PathBuf, Sender<Result<Vec<u8>, FileError>>)>,
+        JoinHandle<()>,
+    ),
 ) -> JoinHandle<()> {
     thread::spawn(move || {
         let utility_thread = utility_thread;
@@ -41,13 +61,13 @@ fn server_initialization(
 
                 tmp.insert(
                     String::from("localhost"),
-                    DomainPath{
+                    DomainPath {
                         path: String::from(""),
                         allow: vec![String::from("html")],
-                    }
+                    },
                 );
                 tmp
-            }
+            },
         };
 
         trace!("Setting initialized ⚙️");
@@ -60,11 +80,7 @@ fn server_initialization(
             .set_compression(compression)
             .set_utility_thread(utility_thread.0.clone());
 
-        let server = Server::new(
-            setting,
-            utility_thread,
-            builder
-        );
+        let server = Server::new(setting, utility_thread, builder);
 
         trace!("Server built 💽🔨");
 
@@ -97,7 +113,7 @@ fn default_one_request_one_pipeline() {
 
     // create file environment
     let _file_1 = FileEnv::new("source\\file_1.html", "hello_world");
-    
+
     trace!("File environment created 📁");
 
     let pair = Arc::new((Mutex::new(false), Condvar::new()));
@@ -107,12 +123,14 @@ fn default_one_request_one_pipeline() {
         Arc::clone(&pair),
         |stream: &mut TcpStream| {
             trace!("Starting parsing 📄🔍");
-            let data = default::parser::<64,1024>(stream);
+            let data = default::parser::<64, 1024>(stream);
             trace!("Finished parsing 📄🔍\n{:?}", data);
 
             data
         },
-        |request: &Result<Request, ResponseStatusCode>, setting: ServerSetting, utility_thread: &mut FileUtilitySender<FileError>| {
+        |request: &Result<Request, ResponseStatusCode>,
+         setting: ServerSetting,
+         utility_thread: &mut FileUtilitySender<FileError>| {
             trace!("Staring action 💪");
             let data = default::action(request, setting, utility_thread);
             trace!("Finished action 💪\n{:?}", data);
@@ -123,10 +141,10 @@ fn default_one_request_one_pipeline() {
             trace!("Staring compression 💥");
             let data = default::no_compression(response, request, settings);
             trace!("Finished compression 💥");
-            
+
             data
         },
-        generate_read_only_file_utility_thread::<NO_BOUND>()
+        generate_read_only_file_utility_thread::<NO_BOUND>(),
     );
 
     {
@@ -162,7 +180,10 @@ fn default_one_request_one_pipeline() {
 
         trace!("{}", response);
 
-        assert_eq!(response, "HTTP/1.1 200 Ok\r\nContent-Length: 11\r\nContent-Type: text/html\r\n\r\nhello_world");
+        assert_eq!(
+            response,
+            "HTTP/1.1 200 Ok\r\nContent-Length: 11\r\nContent-Type: text/html\r\n\r\nhello_world"
+        );
     }
 }
 
@@ -170,10 +191,10 @@ fn default_one_request_one_pipeline() {
 #[serial]
 fn default_one_request_four_pipeline() {
     //logger_init();
-    
+
     // create file environment
     let _file_1 = FileEnv::new("source\\file_1.html", "hello_world");
-    
+
     trace!("File environment created 📁");
 
     let pair = Arc::new((Mutex::new(false), Condvar::new()));
@@ -183,12 +204,14 @@ fn default_one_request_four_pipeline() {
         Arc::clone(&pair),
         |stream: &mut TcpStream| {
             trace!("Starting parsing 📄🔍");
-            let data = default::parser::<64,1024>(stream);
+            let data = default::parser::<64, 1024>(stream);
             trace!("Finished parsing 📄🔍\n{:?}", data);
 
             data
         },
-        |request: &Result<Request, ResponseStatusCode>, setting: ServerSetting, utility_thread: &mut FileUtilitySender<FileError>| {
+        |request: &Result<Request, ResponseStatusCode>,
+         setting: ServerSetting,
+         utility_thread: &mut FileUtilitySender<FileError>| {
             trace!("Staring action 💪");
             let data = default::action(request, setting, utility_thread);
             trace!("Finished action 💪\n{:?}", data);
@@ -199,10 +222,10 @@ fn default_one_request_four_pipeline() {
             trace!("Staring compression 💥");
             let data = default::no_compression(response, request, settings);
             trace!("Finished compression 💥");
-            
+
             data
         },
-        generate_read_only_file_utility_thread::<NO_BOUND>()
+        generate_read_only_file_utility_thread::<NO_BOUND>(),
     );
 
     {
@@ -238,7 +261,10 @@ fn default_one_request_four_pipeline() {
 
         trace!("{}", response);
 
-        assert_eq!(response, "HTTP/1.1 200 Ok\r\nContent-Length: 11\r\nContent-Type: text/html\r\n\r\nhello_world");
+        assert_eq!(
+            response,
+            "HTTP/1.1 200 Ok\r\nContent-Length: 11\r\nContent-Type: text/html\r\n\r\nhello_world"
+        );
     }
 }
 
@@ -252,7 +278,7 @@ fn default_four_request_one_pipeline() {
     let _file_2 = FileEnv::new("source\\request_2.html", "request 2");
     let _file_3 = FileEnv::new("source\\request_3.html", "request 3");
     let _file_4 = FileEnv::new("source\\request_4.html", "request 4");
-    
+
     trace!("File environment created 📁");
 
     let pair = Arc::new((Mutex::new(false), Condvar::new()));
@@ -262,12 +288,14 @@ fn default_four_request_one_pipeline() {
         Arc::clone(&pair),
         |stream: &mut TcpStream| {
             trace!("Starting parsing 📄🔍");
-            let data = default::parser::<64,1024>(stream);
+            let data = default::parser::<64, 1024>(stream);
             trace!("Finished parsing 📄🔍\n{:?}", data);
 
             data
         },
-        |request: &Result<Request, ResponseStatusCode>, setting: ServerSetting, utility_thread: &mut FileUtilitySender<FileError>| {
+        |request: &Result<Request, ResponseStatusCode>,
+         setting: ServerSetting,
+         utility_thread: &mut FileUtilitySender<FileError>| {
             trace!("Staring action 💪");
             let data = default::action(request, setting, utility_thread);
             trace!("Finished action 💪\n{:?}", data);
@@ -278,10 +306,10 @@ fn default_four_request_one_pipeline() {
             trace!("Staring compression 💥");
             let data = default::no_compression(response, request, settings);
             trace!("Finished compression 💥");
-            
+
             data
         },
-        generate_read_only_file_utility_thread::<NO_BOUND>()
+        generate_read_only_file_utility_thread::<NO_BOUND>(),
     );
 
     {
@@ -296,30 +324,30 @@ fn default_four_request_one_pipeline() {
 
     // send request
     {
-        let mut streams:[TcpStream; 4] = core::array::from_fn(|_| TcpStream::connect(format!("{}:{}", ADDRESS, PORT)).unwrap());
+        let mut streams: [TcpStream; 4] =
+            core::array::from_fn(|_| TcpStream::connect(format!("{}:{}", ADDRESS, PORT)).unwrap());
 
         for i in 0..4 {
-            trace!("Request {} sent 💽 📃💨 💻", i+1);
-            let _ = streams[i].write(format!("GET request_{}.html HTTP/1.1\n\rhost:localhost", i + 1).as_bytes());
+            trace!("Request {} sent 💽 📃💨 💻", i + 1);
+            let _ = streams[i]
+                .write(format!("GET request_{}.html HTTP/1.1\n\rhost:localhost", i + 1).as_bytes());
         }
         for i in 0..4 {
-    
-    
             assert!(!server_thread.is_finished());
-    
+
             let mut data = [0; 128];
             streams[i].read(&mut data).unwrap();
-            trace!("Response {} received 💻 📃💨 💽", i+1);
-    
+            trace!("Response {} received 💻 📃💨 💽", i + 1);
+
             let response = String::from_utf8(data.to_vec());
-    
+
             assert!(response.is_ok());
-    
+
             let response = response.unwrap();
             let response = response.trim_end_matches("\0");
-    
+
             trace!("{}", response);
-    
+
             assert_eq!(response, format!("HTTP/1.1 200 Ok\r\nContent-Length: 9\r\nContent-Type: text/html\r\n\r\nrequest {}", i + 1));
         }
     }
@@ -335,7 +363,7 @@ fn default_eight_request_four_pipeline() {
     let _file_2 = FileEnv::new("source\\request_2.html", "request 2");
     let _file_3 = FileEnv::new("source\\request_3.html", "request 3");
     let _file_4 = FileEnv::new("source\\request_4.html", "request 4");
-    
+
     trace!("File environment created 📁");
 
     let pair = Arc::new((Mutex::new(false), Condvar::new()));
@@ -345,12 +373,14 @@ fn default_eight_request_four_pipeline() {
         Arc::clone(&pair),
         |stream: &mut TcpStream| {
             trace!("Starting parsing 📄🔍");
-            let data = default::parser::<64,1024>(stream);
+            let data = default::parser::<64, 1024>(stream);
             trace!("Finished parsing 📄🔍\n{:?}", data);
 
             data
         },
-        |request: &Result<Request, ResponseStatusCode>, setting: ServerSetting, utility_thread: &mut FileUtilitySender<FileError>| {
+        |request: &Result<Request, ResponseStatusCode>,
+         setting: ServerSetting,
+         utility_thread: &mut FileUtilitySender<FileError>| {
             trace!("Staring action 💪");
             let data = default::action(request, setting, utility_thread);
             trace!("Finished action 💪\n{:?}", data);
@@ -361,10 +391,10 @@ fn default_eight_request_four_pipeline() {
             trace!("Staring compression 💥");
             let data = default::no_compression(response, request, settings);
             trace!("Finished compression 💥");
-            
+
             data
         },
-        generate_read_only_file_utility_thread::<NO_BOUND>()
+        generate_read_only_file_utility_thread::<NO_BOUND>(),
     );
 
     {
@@ -378,7 +408,8 @@ fn default_eight_request_four_pipeline() {
     trace!("Server test initiated 🤞");
 
     // send request
-    {//
+    {
+        //
         let mut streams:Vec<JoinHandle<()>> = (0..8)
             .map(
                 |i| {
@@ -436,7 +467,7 @@ fn default_eight_request_four_pipeline_two_file() {
     // create file environment
     let _file_1 = FileEnv::new("source\\request_1.html", &*file_1_content.read().unwrap());
     let _file_2 = FileEnv::new("source\\request_2.html", &*file_2_content.read().unwrap());
-    
+
     trace!("File environment created 📁");
 
     let pair = Arc::new((Mutex::new(false), Condvar::new()));
@@ -446,12 +477,14 @@ fn default_eight_request_four_pipeline_two_file() {
         Arc::clone(&pair),
         |stream: &mut TcpStream| {
             trace!("Starting parsing 📄🔍");
-            let data = default::parser::<64,1024>(stream);
+            let data = default::parser::<64, 1024>(stream);
             trace!("Finished parsing 📄🔍\n{:?}", data);
 
             data
         },
-        |request: &Result<Request, ResponseStatusCode>, setting: ServerSetting, utility_thread: &mut FileUtilitySender<FileError>| {
+        |request: &Result<Request, ResponseStatusCode>,
+         setting: ServerSetting,
+         utility_thread: &mut FileUtilitySender<FileError>| {
             trace!("Staring action 💪");
             let data = default::action(request, setting, utility_thread);
             trace!("Finished action 💪");
@@ -462,10 +495,10 @@ fn default_eight_request_four_pipeline_two_file() {
             trace!("Staring compression 💥");
             let data = default::no_compression(response, request, settings);
             trace!("Finished compression 💥");
-            
+
             data
         },
-        generate_read_only_file_utility_thread::<NO_BOUND>()
+        generate_read_only_file_utility_thread::<NO_BOUND>(),
     );
 
     {

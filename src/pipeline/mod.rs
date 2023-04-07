@@ -1,10 +1,14 @@
-use std::{net::{TcpListener, TcpStream}, thread::JoinHandle, sync::mpsc::Sender};
+use std::{
+    net::{TcpListener, TcpStream},
+    sync::mpsc::Sender,
+    thread::JoinHandle,
+};
 
 use log::trace;
 
-use crate::setting::{ServerSetting};
+use crate::setting::ServerSetting;
 
-use self::{utility_thread::UtilityThread, builder::Builder, pipeline::Pipeline};
+use self::{builder::Builder, pipeline::Pipeline, utility_thread::UtilityThread};
 
 #[cfg(test)]
 mod tests;
@@ -16,7 +20,7 @@ pub mod utility_thread;
 
 mod default;
 
-struct Server<U:  Clone + Send + 'static> {
+struct Server<U: Clone + Send + 'static> {
     settings: ServerSetting,
     builder: Builder<U>,
     utility_thread: (Sender<U>, JoinHandle<()>),
@@ -24,36 +28,41 @@ struct Server<U:  Clone + Send + 'static> {
 
 impl<U: Clone + Send + 'static> Server<U> {
     //create new server
-    pub fn new(settings: ServerSetting, utility_thread: (Sender<U>, JoinHandle<()>), builder: Builder<U>) -> Server<U> {
+    pub fn new(
+        settings: ServerSetting,
+        utility_thread: (Sender<U>, JoinHandle<()>),
+        builder: Builder<U>,
+    ) -> Server<U> {
         let builder = builder.set_settings(settings.clone());
-        Server{
+        Server {
             settings,
             builder,
-            utility_thread
+            utility_thread,
         }
     }
 
     pub fn run<const PIPELINES: usize>(&self) {
         //build pipeline
-        let pipe_lines:[(Sender<TcpStream>, Pipeline<Sender<U>>); PIPELINES] = core::array::from_fn(|_| self.builder.build());
+        let pipe_lines: [(Sender<TcpStream>, Pipeline<Sender<U>>); PIPELINES] =
+            core::array::from_fn(|_| self.builder.build());
 
-        let mut i1:usize = 0; //should be replaced with min heap and used to select the least busy pipeline
+        let mut i1: usize = 0; //should be replaced with min heap and used to select the least busy pipeline
 
         // initialize tcp listener
-        let listener =  {
-            let listener = TcpListener::bind(
-                {
-                    let host = &(*self.builder.settings.as_ref().unwrap()).read().unwrap().address;
-                    let port = &(*self.builder.settings.as_ref().unwrap()).read().unwrap().port;
-    
-                    format!(
-                        "{}:{}",
-                        host,
-                        port
-                    )
-                }
-            );
-            
+        let listener = {
+            let listener = TcpListener::bind({
+                let host = &(*self.builder.settings.as_ref().unwrap())
+                    .read()
+                    .unwrap()
+                    .address;
+                let port = &(*self.builder.settings.as_ref().unwrap())
+                    .read()
+                    .unwrap()
+                    .port;
+
+                format!("{}:{}", host, port)
+            });
+
             let listener = match listener {
                 Ok(listener) => listener,
                 Err(_err) => todo!(),
@@ -62,11 +71,10 @@ impl<U: Clone + Send + 'static> Server<U> {
             listener
         };
 
-
         for stream in listener.incoming() {
             i1 = (i1 + 1) % PIPELINES;
 
-            match stream{
+            match stream {
                 Ok(stream) => {
                     let _ = pipe_lines[i1].0.send(stream);
                 }

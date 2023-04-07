@@ -26,7 +26,6 @@ pub fn parser<const BUFFER_SIZE: usize, const MAX_SIZE: usize>(
                     Err(_err) => return Err(ResponseStatusCode::BadRequest),
                 };
 
-
                 request_str.push_str(&slice);
 
                 request_size += read_size;

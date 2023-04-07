@@ -38,15 +38,12 @@ impl Response {
 
         append_to!(output, format!("HTTP/1.1 {}\r\n", self.status.to_string()));
 
-        self.header
-            .keys()
-            .into_iter()
-            .for_each(|key| {
-                append_to!(
-                    output,
-                    format!("{}: {}\r\n", key, &self.header.get(key).unwrap())
-                );
-            });
+        self.header.keys().into_iter().for_each(|key| {
+            append_to!(
+                output,
+                format!("{}: {}\r\n", key, &self.header.get(key).unwrap())
+            );
+        });
 
         match &self.body {
             Some(body) => {
@@ -77,17 +74,17 @@ impl Display for Response {
 
         output.push_str(&format!("HTTP/1.1 {}\r\n", self.status.to_string()));
 
-        self.header
-            .keys()
-            .into_iter()
-            .for_each(|key| {
-                output.push_str(&format!("{}: {}\r\n", key, &self.header.get(key).unwrap()));
-            });
+        self.header.keys().into_iter().for_each(|key| {
+            output.push_str(&format!("{}: {}\r\n", key, &self.header.get(key).unwrap()));
+        });
 
         match &self.body {
             Some(body) => {
                 output.push_str(&format!("Content-Length: {}\r\n", body.content.len()));
-                output.push_str(&format!("Content-Type: {}\r\n", body.content_type.to_string()));
+                output.push_str(&format!(
+                    "Content-Type: {}\r\n",
+                    body.content_type.to_string()
+                ));
 
                 output.push_str(&format!("\r\n"));
 

@@ -53,6 +53,9 @@ pub struct Pipeline<U: Clone> {
 
 impl<U: Clone> Pipeline<U> {
     pub fn pipeline_state(&self) -> bool {
-        self.parser.thread_state() && self.action.thread_state() && self.compression.thread_state() && self.sender.thread_state()
+        self.parser.thread_state()
+            && self.action.thread_state()
+            && self.compression.thread_state()
+            && self.sender.thread_state()
     }
 }
