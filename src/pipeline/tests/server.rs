@@ -9,7 +9,7 @@ use std::{
     thread::{self, JoinHandle}, time::Duration,
 };
 
-use flate2::{read::{DeflateDecoder, GzDecoder, ZlibDecoder}, Compression, write::{GzEncoder, DeflateEncoder, ZlibEncoder}};
+use flate2::{Compression, write::{GzEncoder, DeflateEncoder, ZlibEncoder}, read::{GzDecoder, DeflateDecoder, ZlibDecoder}};
 use log::{trace, error};
 use serial_test::serial;
 
@@ -104,6 +104,28 @@ fn create_mb_string(n: usize) -> String {
         s.push('a');
     }
     s
+}
+
+fn split_vec_on_subsequence<'a>(vec: &'a Vec<u8>, subseq: &[u8]) -> Option<(&'a[u8], &'a[u8])> {
+    let mut iter = vec.iter().enumerate();
+    let mut subseq_idx = 0;
+    let mut start_idx = 0;
+
+    while let Some((idx, &byte)) = iter.next() {
+        if byte == subseq[subseq_idx] {
+            subseq_idx += 1;
+            if subseq_idx == subseq.len() {
+                // Found the subsequence, split the vector
+                let end_idx = idx - subseq.len() + 1;
+                let (first, second) = vec.split_at(end_idx);
+                return Some((first, &second[subseq.len()..]));
+            }
+        } else {
+            subseq_idx = 0;
+        }
+    }
+
+    None
 }
 
 #[test]
@@ -591,7 +613,7 @@ fn default_compression_one_pipeline() {
     let pair = Arc::new((Mutex::new(false), Condvar::new()));
 
     // start server in separated thread
-    let server_thread = server_initialization(
+    let _server_thread = server_initialization(
         Arc::clone(&pair),
         |stream: &mut TcpStream| {
             trace!("Starting parsing 📄🔍");
@@ -664,24 +686,33 @@ fn default_compression_one_pipeline() {
                 }
                 trace!("Response {algo} received 💻 📃💨 💽");
         
-                let content = match *algo {
+                let response_body = split_vec_on_subsequence(&response, &[13, 10, 13, 10]).unwrap().1;
+
+
+                let expected_content = match *algo {
                     "gzip" => {
-                        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-                        assert!(encoder.write(file_1_content.as_bytes()).is_ok());
+                        let mut decoder = GzDecoder::new(response_body);
                         
-                        encoder.finish().unwrap()
+                        let mut decoded_data: Vec<u8> = Vec::new();
+                        assert!(decoder.read(&mut decoded_data).is_ok());
+
+                        decoded_data
                     }
                     "deflate" => {
-                        let mut encoder = DeflateEncoder::new(Vec::new(), Compression::default());
-                        assert!(encoder.write(file_1_content.as_bytes()).is_ok());
+                        let mut decoder = DeflateDecoder::new(response_body);
                         
-                        encoder.finish().unwrap()
+                        let mut decoded_data: Vec<u8> = Vec::new();
+                        assert!(decoder.read(&mut decoded_data).is_ok());
+
+                        decoded_data
                     }
                     "zlib" => {
-                        let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-                        assert!(encoder.write(file_1_content.as_bytes()).is_ok());
+                        let mut decoder = ZlibDecoder::new(response_body);
                         
-                        encoder.finish().unwrap()
+                        let mut decoded_data: Vec<u8> = Vec::new();
+                        assert!(decoder.read(&mut decoded_data).is_ok());
+
+                        decoded_data
                     }
                     _ => {
                         file_1_content.as_bytes().clone().into()
@@ -693,9 +724,9 @@ fn default_compression_one_pipeline() {
                         assert_eq!(
                             response,
                             {
-                                let mut data = format!("HTTP/1.1 200 Ok\r\nContent-Length: {}\r\nContent-Type: text/html\r\n\r\n", content.len()).as_bytes()
+                                let mut data = (&format!("HTTP/1.1 200 Ok\r\nContent-Length: {}\r\nContent-Type: text/html\r\n\r\n", expected_content.len())).as_bytes()
                                     .to_vec();
-                                data.append(&mut content.clone());
+                                data.append(&mut expected_content.clone());
 
                                 data
                             }
@@ -705,9 +736,14 @@ fn default_compression_one_pipeline() {
                         assert_eq!(
                             response,
                             {
-                                let mut data = format!("HTTP/1.1 200 Ok\r\nContent-Encoding: {algo}\r\nContent-Length: {}\r\nContent-Type: text/html\r\n\r\n", content.len()).as_bytes()
+                                println!("{:?}", response);
+                                println!("{}", format!("HTTP/1.1 200 Ok\r\nContent-Encoding: {algo}\r\nContent-Length: {}\r\nContent-Type: text/html\r\n\r\n", expected_content.len()));
+                                println!("{:?}", (&format!("HTTP/1.1 200 Ok\r\nContent-Encoding: {algo}\r\nContent-Length: {}\r\nContent-Type: text/html\r\n\r\n", expected_content.len())).as_bytes());
+                                let mut data = (&format!("HTTP/1.1 200 Ok\r\nContent-Encoding: {algo}\r\nContent-Length: {}\r\nContent-Type: text/html\r\n\r\n", expected_content.len())).as_bytes()
                                     .to_vec();
-                                data.append(&mut content.clone());
+                                data.append(&mut expected_content.clone());
+                                println!("{:?}", expected_content.clone());
+                                println!("{:?}", data);
 
                                 data
                             }
@@ -716,8 +752,6 @@ fn default_compression_one_pipeline() {
                 }
                 
             });
-
-        
     }
 }
 
