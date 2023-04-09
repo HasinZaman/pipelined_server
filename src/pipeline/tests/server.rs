@@ -561,7 +561,9 @@ fn default_eight_request_four_pipeline_two_file() {
                     let steam = streams.pop().unwrap();
 
                     match steam.join() {
-                        Ok(_) => assert!(true),
+                        Ok(_) => {
+                            assert!(true);
+                        },
                         Err(err) => {
                             println!("{:?}", err);
                             assert!(false);
