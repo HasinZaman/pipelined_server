@@ -5,19 +5,19 @@ use std::{
     io::{Read, Write},
     net::TcpStream,
     path::PathBuf,
-    sync::{mpsc::Sender, Arc, Condvar, Mutex, RwLock},
-    thread::{self, JoinHandle},
-    time::Duration,
+    sync::{mpsc::{Sender}, Arc, Condvar, Mutex, RwLock},
+    thread::{self, JoinHandle}, time::Duration,
 };
 
-use log::trace;
+use flate2::{read::{DeflateDecoder, GzDecoder, ZlibDecoder}, Compression, write::{GzEncoder, DeflateEncoder, ZlibEncoder}};
+use log::{trace, error};
 use serial_test::serial;
 
 use crate::{
     file::FileError,
     http::{
         request::Request,
-        response::{response_status_code::ResponseStatusCode, Response},
+        response::{response_status_code::ResponseStatusCode, Response}, method::Method,
     },
     logging::logger_init,
     pipeline::{
@@ -569,6 +569,298 @@ fn default_eight_request_four_pipeline_two_file() {
                     }
                 }
             }
+        }
+    }
+}
+
+#[test]
+#[serial]
+fn default_parser_error_recovery_one_pipeline() {
+    logger_init();
+
+    // create file environment
+    let _file_1 = FileEnv::new("source\\request_1.html", "request 1");
+
+    trace!("File environment created 📁");
+
+    let pair = Arc::new((Mutex::new(false), Condvar::new()));
+
+    // start server in separated thread
+    let server_thread = server_initialization(
+        Arc::clone(&pair),
+        |stream: &mut TcpStream| {
+            trace!("Starting parsing 📄🔍");
+            let data = default::parser::<64, 1024>(stream);
+
+            if let Ok(Request(Method::Get { file }, _)) = &data {
+                if file == "request_2.html" {
+                    error!("Parser Panic");
+                    panic!("Simulated Panic") 
+                }
+            }
+
+            trace!("Finished parsing 📄🔍\n{:?}", data);
+
+            data
+        },
+        |request: &Result<Request, ResponseStatusCode>,
+         setting: ServerSetting,
+         utility_thread: &mut FileUtilitySender<FileError>| {
+            trace!("Staring action 💪");
+            let data = default::action(request, setting, utility_thread);
+            trace!("Finished action 💪\n{:?}", data);
+
+            data
+        },
+        |response: Response, request: Option<Request>, settings: ServerSetting| {
+            trace!("Staring compression 💥");
+            let data = default::no_compression(response, request, settings);
+            trace!("Finished compression 💥");
+
+            data
+        },
+        generate_read_only_file_utility_thread::<NO_BOUND>(),
+    );
+
+    {
+        let (lock, cvar) = &*pair;
+        let mut started = lock.lock().unwrap();
+
+        while !*started {
+            started = cvar.wait(started).unwrap();
+        }
+    }
+    trace!("Server test initiated 🤞");
+
+    // send request
+    {
+        let mut streams: [TcpStream; 3] =
+            core::array::from_fn(|_| TcpStream::connect(format!("{}:{}", ADDRESS, PORT)).unwrap());
+
+        for i in 0..3 {
+            trace!("Request {} sent 💽 📃💨 💻", i + 1);
+            match i {
+                1 => {
+                    let _ = streams[i]
+                        .write(b"GET request_2.html HTTP/1.1\n\rhost:localhost");
+                },
+                _ => {
+                    let _ = streams[i]
+                        .write(b"GET request_1.html HTTP/1.1\n\rhost:localhost");
+                }
+            }
+            
+        }
+        for i in 0..2 {
+            assert!(!server_thread.is_finished());
+
+            let mut data = [0; 128];
+            streams[i * 2].read(&mut data).unwrap();//skip streams[1] due to panic
+            trace!("Response {} received 💻 📃💨 💽", (i * 2) + 1);
+
+            let response = String::from_utf8(data.to_vec());
+
+            assert!(response.is_ok());
+
+            let response = response.unwrap();
+            let response = response.trim_end_matches("\0");
+
+            trace!("{}", response);
+
+            assert_eq!(response, format!("HTTP/1.1 200 Ok\r\nContent-Length: 9\r\nContent-Type: text/html\r\n\r\nrequest 1"));
+        }
+    }
+}
+
+#[test]
+#[serial]
+fn default_action_error_recovery_one_pipeline() {
+    logger_init();
+
+    // create file environment
+    let _file_1 = FileEnv::new("source\\request_1.html", "request 1");
+
+    trace!("File environment created 📁");
+
+    let pair = Arc::new((Mutex::new(false), Condvar::new()));
+
+    // start server in separated thread
+    let server_thread = server_initialization(
+        Arc::clone(&pair),
+        |stream: &mut TcpStream| {
+            trace!("Starting parsing 📄🔍");
+            let data = default::parser::<64, 1024>(stream);
+            trace!("Finished parsing 📄🔍\n{:?}", data);
+
+            data
+        },
+        |request: &Result<Request, ResponseStatusCode>,
+         setting: ServerSetting,
+         utility_thread: &mut FileUtilitySender<FileError>| {
+            trace!("Staring action 💪");
+            if let Ok(Request(Method::Get { file }, _)) = request {
+                if file == "request_2.html" {
+                    error!("Action Panic");
+                    panic!("Simulated Panic") 
+                }
+            }
+            let data = default::action(request, setting, utility_thread);
+            trace!("Finished action 💪\n{:?}", data);
+
+            data
+        },
+        |response: Response, request: Option<Request>, settings: ServerSetting| {
+            trace!("Staring compression 💥");
+            let data = default::no_compression(response, request, settings);
+            trace!("Finished compression 💥");
+
+            data
+        },
+        generate_read_only_file_utility_thread::<NO_BOUND>(),
+    );
+
+    {
+        let (lock, cvar) = &*pair;
+        let mut started = lock.lock().unwrap();
+
+        while !*started {
+            started = cvar.wait(started).unwrap();
+        }
+    }
+    trace!("Server test initiated 🤞");
+
+    // send request
+    {
+        let mut streams: [TcpStream; 3] =
+            core::array::from_fn(|_| TcpStream::connect(format!("{}:{}", ADDRESS, PORT)).unwrap());
+
+        for i in 0..3 {
+            trace!("Request {} sent 💽 📃💨 💻", i + 1);
+            match i {
+                1 => {
+                    let _ = streams[i]
+                        .write(b"GET request_2.html HTTP/1.1\n\rhost:localhost");
+                },
+                _ => {
+                    let _ = streams[i]
+                        .write(b"GET request_1.html HTTP/1.1\n\rhost:localhost");
+                }
+            }
+            
+        }
+        for i in 0..2 {
+            assert!(!server_thread.is_finished());
+
+            let mut data = [0; 128];
+            streams[i * 2].read(&mut data).unwrap();//skip streams[1] due to panic
+            trace!("Response {} received 💻 📃💨 💽", (i * 2) + 1);
+
+            let response = String::from_utf8(data.to_vec());
+
+            assert!(response.is_ok());
+
+            let response = response.unwrap();
+            let response = response.trim_end_matches("\0");
+
+            trace!("{}", response);
+
+            assert_eq!(response, format!("HTTP/1.1 200 Ok\r\nContent-Length: 9\r\nContent-Type: text/html\r\n\r\nrequest 1"));
+        }
+    }
+}
+
+#[test]
+#[serial]
+fn default_compressor_error_recovery_one_pipeline() {
+    logger_init();
+
+    // create file environment
+    let _file_1 = FileEnv::new("source\\request_1.html", "request 1");
+
+    trace!("File environment created 📁");
+
+    let pair = Arc::new((Mutex::new(false), Condvar::new()));
+
+    // start server in separated thread
+    let server_thread = server_initialization(
+        Arc::clone(&pair),
+        |stream: &mut TcpStream| {
+            trace!("Starting parsing 📄🔍");
+            let data = default::parser::<64, 1024>(stream);
+            trace!("Finished parsing 📄🔍\n{:?}", data);
+
+            data
+        },
+        |request: &Result<Request, ResponseStatusCode>,
+         setting: ServerSetting,
+         utility_thread: &mut FileUtilitySender<FileError>| {
+            trace!("Staring action 💪");
+            let data = default::action(request, setting, utility_thread);
+            trace!("Finished action 💪\n{:?}", data);
+
+            data
+        },
+        |response: Response, request: Option<Request>, settings: ServerSetting| {
+            trace!("Staring compression 💥");
+            trace!("compression: {request:?}");
+            if None == request {
+                error!("Compressor Panic");
+                panic!("Simulated Panic")
+            }
+            let data = default::no_compression(response, request, settings);
+            trace!("Finished compression 💥");
+
+            data
+        },
+        generate_read_only_file_utility_thread::<NO_BOUND>(),
+    );
+
+    {
+        let (lock, cvar) = &*pair;
+        let mut started = lock.lock().unwrap();
+
+        while !*started {
+            started = cvar.wait(started).unwrap();
+        }
+    }
+    trace!("Server test initiated 🤞");
+
+    // send request
+    {
+        let mut streams: [TcpStream; 3] =
+            core::array::from_fn(|_| TcpStream::connect(format!("{}:{}", ADDRESS, PORT)).unwrap());
+
+        for i in 0..3 {
+            trace!("Request {} sent 💽 📃💨 💻", i + 1);
+            match i {
+                1 => {
+                    let _ = streams[i]
+                        .write(b"GET request_2.html HTTP/1.1\n\rhost:localhost");
+                },
+                _ => {
+                    let _ = streams[i]
+                        .write(b"GET request_1.html HTTP/1.1\n\rhost:localhost");
+                }
+            }
+            
+        }
+        for i in 0..2 {
+            assert!(!server_thread.is_finished());
+
+            let mut data = [0; 128];
+            streams[i * 2].read(&mut data).unwrap();//skip streams[1] due to panic
+            trace!("Response {} received 💻 📃💨 💽", (i * 2) + 1);
+
+            let response = String::from_utf8(data.to_vec());
+
+            assert!(response.is_ok());
+
+            let response = response.unwrap();
+            let response = response.trim_end_matches("\0");
+
+            trace!("{}", response);
+
+            assert_eq!(response, format!("HTTP/1.1 200 Ok\r\nContent-Length: 9\r\nContent-Type: text/html\r\n\r\nrequest 1"));
         }
     }
 }
