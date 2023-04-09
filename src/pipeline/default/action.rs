@@ -4,8 +4,7 @@ use std::{
     mem,
     path::PathBuf,
     sync::{
-        mpsc::{self, Receiver, Sender},
-        RwLock,
+        mpsc::{self, Sender},
     },
     thread::{self, JoinHandle},
 };
@@ -15,13 +14,13 @@ use log::{error, info, trace, warn};
 use crate::{
     file::{self, FileError},
     http::{
-        body::{Application, Body, ContentType, Image, Text, Video},
-        method::{self, Method},
+        body::{Body, ContentType, Text},
+        method::{Method},
         request::Request,
         response::{response_status_code::ResponseStatusCode, Response},
     },
     pipeline::pipeline::Bytes,
-    setting::{self, ServerSetting},
+    setting::{ServerSetting},
 };
 
 type MethodFn = fn(Request, &ServerSetting) -> Result<Response, ResponseStatusCode>;
