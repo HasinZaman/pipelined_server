@@ -1,7 +1,7 @@
 use std::{marker::PhantomData, thread::JoinHandle};
 
 pub struct Component<IQ, OQ, E> {
-    input_queue: IQ,
+    pub(super) input_queue: IQ,
 
     thread: JoinHandle<E>,
 
@@ -21,7 +21,12 @@ impl<IQ, OQ, E> Component<IQ, OQ, E> {
         !self.thread.is_finished()
     }
 
-    pub fn fix_thread(&mut self) -> Result<(), ()> {
-        todo!()
+    //swap out thread on recovery
+    pub(super) fn swap_out_thread(&mut self, new_thread: JoinHandle<E>) {
+        if self.thread_state() {
+            return;
+        }
+
+        self.thread = new_thread;
     }
 }

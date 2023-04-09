@@ -2,13 +2,14 @@ use std::{
     io::Write,
     net::TcpStream,
     sync::{
-        mpsc::{self, Sender},
+        mpsc::{self, Sender, Receiver},
         Arc, Mutex, RwLock,
     },
-    thread::{self},
+    thread::{self, JoinHandle},
 };
 
 use cyclic_data_types::list::List;
+use log::error;
 
 use crate::{
     http::{
@@ -34,6 +35,8 @@ type ActionFunc<U> = fn(
 ) -> Result<Response, ResponseStatusCode>;
 type CompressionFunc = fn(Response, Option<Request>, ServerSetting) -> Bytes;
 
+
+#[derive(Clone)]
 pub struct Builder<U: Clone> {
     pub parser: Option<ParserFunc>,
     pub action: Option<ActionFunc<U>>,
@@ -75,13 +78,13 @@ impl<U: Clone + Send + 'static> Builder<U> {
 
     pub fn build(&self) -> (Sender<TcpStream>, Pipeline<mpsc::Sender<U>>) {
         //building components back to front to deal with input queue dependencies & ownership issues
-        let (sender_queue, sender) = build_sender();
+        let (sender_queue, sender) = build_sender_component();
 
         //build compressor
         if self.compression.is_none() {
             todo!()
         }
-        let (compressor_queue, compression) = build_compressor(
+        let (compressor_queue, compression) = build_compressor_component(
             self.compression.unwrap(),
             sender_queue,
             &self.settings.clone().unwrap(),
@@ -91,7 +94,7 @@ impl<U: Clone + Send + 'static> Builder<U> {
         if self.action.is_none() || self.utility_sender.is_none() || self.settings.is_none() {
             todo!()
         }
-        let (action_queue, action) = build_action(
+        let (action_queue, action) = build_action_component(
             self.action.unwrap(),
             compressor_queue,
             self.utility_sender.clone().unwrap(),
@@ -102,7 +105,7 @@ impl<U: Clone + Send + 'static> Builder<U> {
         if self.parser.is_none() {
             todo!()
         }
-        let (new_conn, parser) = build_parser(self.parser.unwrap(), action_queue);
+        let (new_conn, parser) = build_parser_component(self.parser.unwrap(), action_queue);
 
         //construct pipeline
         let pipeline = Pipeline {
@@ -116,8 +119,47 @@ impl<U: Clone + Send + 'static> Builder<U> {
         (new_conn, pipeline)
     }
 
-    pub fn fix(&self, pipeline: &mut Pipeline<U>) -> Result<(), ()> {
-        todo!()
+    pub fn fix(&self, pipeline: &mut Pipeline<mpsc::Sender<U>>) -> Result<(), ()> {
+        if !pipeline.sender.thread_state() {
+            error!("{pipeline} - Sender component panic");
+            let input_queue = pipeline.sender.input_queue.clone();
+
+            let new_thread = build_sender_thread(input_queue);
+
+            pipeline.sender.swap_out_thread(new_thread);
+        }
+
+        if !pipeline.compression.thread_state() {
+            error!("{pipeline} - Compression component panic");
+            let input_queue = pipeline.compression.input_queue.clone();
+            let output_queue = pipeline.sender.input_queue.clone();
+
+            let new_thread = build_compressor_thread(self.compression.unwrap(), input_queue, output_queue, self.settings.clone().unwrap());
+
+            pipeline.compression.swap_out_thread(new_thread);
+        }
+
+        if !pipeline.action.thread_state() {
+            error!("{pipeline} - Action component panic");
+            let input_queue = pipeline.action.input_queue.clone();
+            let output_queue = pipeline.compression.input_queue.clone();
+
+            let new_thread = build_action_thread(self.action.unwrap(), input_queue, output_queue, self.utility_sender.clone().unwrap(), self.settings.clone().unwrap());
+
+            pipeline.action.swap_out_thread(new_thread);
+        }
+
+        if !pipeline.parser.thread_state() {
+            error!("{pipeline} - Parser component panic");
+            let input_queue = pipeline.parser.input_queue.clone();
+            let output_queue = pipeline.action.input_queue.clone();
+
+            let new_thread = build_parser_thread(self.parser.unwrap(), input_queue, output_queue);
+
+            pipeline.parser.swap_out_thread(new_thread);
+        }
+        
+        Ok(())
     }
 }
 
@@ -134,7 +176,7 @@ impl<U: Clone + Send + 'static> Default for Builder<U> {
 }
 
 // look into generic implementations
-fn build_parser(
+fn build_parser_component(
     parser: ParserFunc,
     output_queue: Arc<Mutex<ActionQueue>>,
 ) -> (Sender<TcpStream>, ParserComponent) {
@@ -142,14 +184,28 @@ fn build_parser(
 
     let rx = Arc::new(Mutex::new(rx));
 
-    let rx_clone = rx.clone();
+    let thread = build_parser_thread(parser, rx.clone(), output_queue);
 
-    let thread = thread::spawn(move || {
-        let rx = &*rx_clone.lock().unwrap();
+    let component = Component::new(rx, thread);
+
+    (tx, component)
+}
+
+fn build_parser_thread(
+    parser: ParserFunc,
+    input_queue: Arc<Mutex<Receiver<TcpStream>>>,
+    output_queue: Arc<Mutex<ActionQueue>>,
+) -> JoinHandle<()> {
+    thread::spawn(move || {
+       // let rx = &*input_queue.lock().unwrap();
 
         loop {
             //get tcp stream
-            let tcp_stream = rx.recv();
+            let tcp_stream = {
+                let rx = &*input_queue.lock().unwrap();
+                
+                rx.recv()
+            };
 
             if let Err(_err) = tcp_stream {
                 todo!();
@@ -171,14 +227,10 @@ fn build_parser(
                 Err(_) => todo!(), //send error message
             }
         }
-    });
-
-    let component = Component::new(rx, thread);
-
-    (tx, component)
+    })
 }
 
-fn build_action<U: Send + 'static>(
+fn build_action_component<U: Send + 'static>(
     func: ActionFunc<U>,
     output_queue: Arc<Mutex<CompressionQueue>>,
     utility_access: mpsc::Sender<U>,
@@ -186,14 +238,21 @@ fn build_action<U: Send + 'static>(
 ) -> (Arc<Mutex<ActionQueue>>, ActionComponent) {
     let input_queue = Arc::new(Mutex::new(ActionQueue::default()));
 
-    let input_queue_tmp = input_queue.clone();
+    let thread = build_action_thread(func, input_queue.clone(), output_queue, utility_access, settings.clone());
 
-    let server_settings = settings.clone();
+    let component = Component::new(input_queue.clone(), thread);
 
-    //let ch = utility_access;
+    (input_queue, component)
+}
 
-    let thread = thread::spawn(move || {
-        let input_queue = input_queue_tmp;
+fn build_action_thread<U: Send + 'static>(
+    func: ActionFunc<U>,
+    input_queue: Arc<Mutex<ActionQueue>>,
+    output_queue: Arc<Mutex<CompressionQueue>>,
+    utility_access: mpsc::Sender<U>,
+    server_settings: Arc<RwLock<ServerSetting>>,
+) -> JoinHandle<()> {
+    thread::spawn(move || {
         let mut utility_access = utility_access;
         loop {
             //get control of input queue
@@ -224,26 +283,30 @@ fn build_action<U: Send + 'static>(
                 }
             }
         }
-    });
-
-    let component = Component::new(input_queue.clone(), thread);
-
-    (input_queue, component)
+    })
 }
 
-fn build_compressor(
+fn build_compressor_component(
     func: CompressionFunc,
     output_queue: Arc<Mutex<SenderQueue>>,
     settings: &Arc<RwLock<ServerSetting>>,
 ) -> (Arc<Mutex<CompressionQueue>>, CompressionComponent) {
     let input_queue = Arc::new(Mutex::new(CompressionQueue::default()));
 
-    let input_queue_tmp = input_queue.clone();
+    let thread = build_compressor_thread(func, input_queue.clone(), output_queue, settings.clone());
 
-    let server_settings = settings.clone();
+    let component = Component::new(input_queue.clone(), thread);
 
-    let thread = thread::spawn(move || {
-        let input_queue = input_queue_tmp;
+    (input_queue, component)
+}
+
+fn build_compressor_thread(
+    func: CompressionFunc,
+    input_queue: Arc<Mutex<CompressionQueue>>,
+    output_queue: Arc<Mutex<SenderQueue>>,
+    server_settings: Arc<RwLock<ServerSetting>>
+) -> JoinHandle<()> {
+    thread::spawn(move || {
         loop {
             //get first element in queue
             let (stream, response, request) = match dequeue(&input_queue) {
@@ -258,19 +321,23 @@ fn build_compressor(
                 .unwrap()
                 .push_back((stream, func(response, request, server_settings)));
         }
-    });
+    })
+}
+
+fn build_sender_component() -> (Arc<Mutex<SenderQueue>>, SenderComponent) {
+    let input_queue = Arc::new(Mutex::new(SenderQueue::default()));
+
+    let thread = build_sender_thread(input_queue.clone());
 
     let component = Component::new(input_queue.clone(), thread);
 
     (input_queue, component)
 }
 
-fn build_sender() -> (Arc<Mutex<SenderQueue>>, SenderComponent) {
-    let input_queue = Arc::new(Mutex::new(SenderQueue::default()));
-
-    let input_queue_tmp = input_queue.clone();
-    let thread = thread::spawn(move || {
-        let input_queue = input_queue_tmp;
+fn build_sender_thread(
+    input_queue: Arc<Mutex<SenderQueue>>,
+) -> JoinHandle<()> {
+    thread::spawn(move || {
         loop {
             //get first element in queue
             let (mut stream, bytes) = match dequeue(&input_queue) {
@@ -287,11 +354,7 @@ fn build_sender() -> (Arc<Mutex<SenderQueue>>, SenderComponent) {
                 todo!()
             }
         }
-    });
-
-    let component = Component::new(input_queue.clone(), thread);
-
-    (input_queue, component)
+    })
 }
 
 fn dequeue<const T: usize, U>(queue: &Arc<Mutex<List<T, U, false>>>) -> Option<U> {

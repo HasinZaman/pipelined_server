@@ -1,9 +1,9 @@
 use std::{
     net::TcpStream,
     sync::{
-        mpsc::{self, Receiver},
+        mpsc::{Receiver},
         Arc, Mutex,
-    },
+    }, fmt::{Display, Debug}, ptr,
 };
 
 use cyclic_data_types::list::List;
@@ -57,5 +57,23 @@ impl<U: Clone> Pipeline<U> {
             && self.action.thread_state()
             && self.compression.thread_state()
             && self.sender.thread_state()
+    }
+}
+
+impl<U: Clone> Display for Pipeline<U> {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let ptr = ptr::addr_of!(self);
+        write!(fmt, "Pipeline({})", ptr as usize)
+    }
+}
+
+impl<U: Clone> Debug for Pipeline<U> {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fmt.debug_struct("Pipeline")
+            .field("parser component state", &self.parser.thread_state())
+            .field("action component state", &self.action.thread_state())
+            .field("compression component state", &self.compression.thread_state())
+            .field("sender component state", &self.sender.thread_state())
+            .finish()
     }
 }

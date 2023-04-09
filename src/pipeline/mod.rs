@@ -1,14 +1,14 @@
 use std::{
     net::{TcpListener, TcpStream},
-    sync::mpsc::Sender,
-    thread::JoinHandle,
+    sync::{mpsc::Sender},
+    thread::{JoinHandle, self},
 };
 
-use log::trace;
+use log::{trace, error};
 
 use crate::setting::ServerSetting;
 
-use self::{builder::Builder, pipeline::Pipeline, utility_thread::UtilityThread};
+use self::{builder::Builder, pipeline::Pipeline};
 
 #[cfg(test)]
 mod tests;
@@ -43,9 +43,22 @@ impl<U: Clone + Send + 'static> Server<U> {
 
     pub fn run<const PIPELINES: usize>(&self) {
         //build pipeline
-        let pipe_lines: [(Sender<TcpStream>, Pipeline<Sender<U>>); PIPELINES] =
-            core::array::from_fn(|_| self.builder.build());
+        let (senders, mut pipes) = {
 
+            let mut sender: Vec<Sender<TcpStream>> = Vec::new();
+            let mut pipes: Vec<Pipeline<Sender<U>>> = Vec::new();
+
+            (0..PIPELINES).map(|_| self.builder.build())
+                .for_each(|(s,p)| {
+                    sender.push(s.clone());
+                    pipes.push(p);
+                });
+
+            let sender : [Sender<TcpStream>; PIPELINES] =  sender.try_into().unwrap();
+            let pipes : [Pipeline<Sender<U>>; PIPELINES] =  pipes.try_into().unwrap();
+
+            (sender, pipes)
+        };
         let mut i1: usize = 0; //should be replaced with min heap and used to select the least busy pipeline
 
         // initialize tcp listener
@@ -71,12 +84,26 @@ impl<U: Clone + Send + 'static> Server<U> {
             listener
         };
 
+        let builder = self.builder.clone();
+        let _recovery_thread = {
+            thread::spawn(move || {
+                loop {
+                    for pipe in &mut pipes{
+                        if !pipe.pipeline_state() {
+                            error!("{pipe} failure");
+                            let _ = builder.fix(pipe);
+                        }
+                    }
+                }
+            })
+        };
+
         for stream in listener.incoming() {
             i1 = (i1 + 1) % PIPELINES;
 
             match stream {
                 Ok(stream) => {
-                    let _ = pipe_lines[i1].0.send(stream);
+                    let _ = senders[i1].send(stream);
                 }
                 Err(err) => {
                     trace!("{}", err);
