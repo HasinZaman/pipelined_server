@@ -575,6 +575,152 @@ fn default_eight_request_four_pipeline_two_file() {
 
 #[test]
 #[serial]
+fn default_compression_one_pipeline() {
+    //logger_init();
+    let file_1_content = create_mb_string(10);
+
+    // create file environment
+    let _file_1 = FileEnv::new("source\\file_1.html", &file_1_content);
+
+    let compression_algo = vec!["gzip","deflate","zlib", "none"];
+
+    trace!("File environment created 📁");
+
+    let pair = Arc::new((Mutex::new(false), Condvar::new()));
+
+    // start server in separated thread
+    let server_thread = server_initialization(
+        Arc::clone(&pair),
+        |stream: &mut TcpStream| {
+            trace!("Starting parsing 📄🔍");
+            let data = default::parser::<64, 1024>(stream);
+            trace!("Finished parsing 📄🔍\n{:?}", data);
+
+            data
+        },
+        |request: &Result<Request, ResponseStatusCode>,
+         setting: ServerSetting,
+         utility_thread: &mut FileUtilitySender<FileError>| {
+            trace!("Staring action 💪");
+            let data = default::action(request, setting, utility_thread);
+            trace!("Finished action 💪");
+
+            data
+        },
+        |response: Response, request: Option<Request>, settings: ServerSetting| {
+            trace!("Staring compression 💥");
+            let data = default::compression(response, request, settings);
+            trace!("Finished compression 💥");
+
+            data
+        },
+        generate_read_only_file_utility_thread::<NO_BOUND>(),
+    );
+
+    {
+        let (lock, cvar) = &*pair;
+        let mut started = lock.lock().unwrap();
+
+        while !*started {
+            started = cvar.wait(started).unwrap();
+        }
+    }
+    trace!("Server test initiated 🤞");
+
+    // send request
+    {
+
+        let mut streams: Vec<TcpStream> = compression_algo.iter().map(|_| TcpStream::connect(format!("{}:{}", ADDRESS, PORT)).unwrap()).collect();
+
+        streams.iter_mut()
+            .zip(compression_algo.iter())
+            .for_each(|(stream, algo)| {
+                trace!("Request {algo} sent 💽 📃💨 💻");
+                match *algo {
+                    "none" => {
+                        stream.write(b"GET file_1.html HTTP/1.1\n\rhost:localhost");
+                    },
+                    _=> {
+                        stream.write(format!("GET file_1.html HTTP/1.1\n\rhost:localhost\n\rAccept-Encoding: {algo}").as_bytes());
+                    }
+                }
+            });
+
+        streams.iter_mut()
+            .zip(compression_algo.iter())
+            .for_each(|(stream, algo)| {
+                let mut data_buffer = [0; 128];
+                let mut response = Vec::new();
+                while let Ok(size) = stream.read(&mut data_buffer) {
+                    if size == 0 {
+                        // Stop the TCP listener when the stream stops receiving data
+                        break;
+                    }
+                    let data = &data_buffer[..size];
+
+                    response.append(&mut data.clone().into_iter().filter(|byte| **byte != '\0' as u8).map(|v| *v).collect());
+                }
+                trace!("Response {algo} received 💻 📃💨 💽");
+        
+                let content = match *algo {
+                    "gzip" => {
+                        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+                        assert!(encoder.write(file_1_content.as_bytes()).is_ok());
+                        
+                        encoder.finish().unwrap()
+                    }
+                    "deflate" => {
+                        let mut encoder = DeflateEncoder::new(Vec::new(), Compression::default());
+                        assert!(encoder.write(file_1_content.as_bytes()).is_ok());
+                        
+                        encoder.finish().unwrap()
+                    }
+                    "zlib" => {
+                        let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+                        assert!(encoder.write(file_1_content.as_bytes()).is_ok());
+                        
+                        encoder.finish().unwrap()
+                    }
+                    _ => {
+                        file_1_content.as_bytes().clone().into()
+                    },
+                };
+
+                match *algo {
+                    "none" => {
+                        assert_eq!(
+                            response,
+                            {
+                                let mut data = format!("HTTP/1.1 200 Ok\r\nContent-Length: {}\r\nContent-Type: text/html\r\n\r\n", content.len()).as_bytes()
+                                    .to_vec();
+                                data.append(&mut content.clone());
+
+                                data
+                            }
+                        );
+                    },
+                    _=> {
+                        assert_eq!(
+                            response,
+                            {
+                                let mut data = format!("HTTP/1.1 200 Ok\r\nContent-Encoding: {algo}\r\nContent-Length: {}\r\nContent-Type: text/html\r\n\r\n", content.len()).as_bytes()
+                                    .to_vec();
+                                data.append(&mut content.clone());
+
+                                data
+                            }
+                        );
+                    }
+                }
+                
+            });
+
+        
+    }
+}
+
+#[test]
+#[serial]
 fn default_parser_error_recovery_one_pipeline() {
     logger_init();
 
