@@ -16,7 +16,7 @@ use flate2::{
     write::{DeflateEncoder, GzEncoder, ZlibEncoder},
     Compression,
 };
-use log::trace;
+use log::{trace, error};
 pub use parser::parser;
 use std::io::Write;
 
@@ -24,7 +24,13 @@ pub fn no_compression(response: Response, _: Option<Request>, _: ServerSetting) 
     return response.as_bytes();
 }
 
-pub fn compression(mut response: Response, request: Request, setting: ServerSetting) -> Bytes {
+pub fn compression(mut response: Response, request: Option<Request>, _setting: ServerSetting) -> Bytes {
+    
+    let request = match request{
+        Some(val) => val,
+        None => return response.as_bytes(),
+    };
+
     if let None = response.body {
         return response.as_bytes();
     }
@@ -49,7 +55,11 @@ pub fn compression(mut response: Response, request: Request, setting: ServerSett
         match decoder {
             "gzip" => {
                 let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-                encoder.write(&body_content);
+                if let Err(err) = encoder.write(&body_content) {
+                    error!("{err}");
+
+                    continue;
+                }
 
                 body_content = encoder.finish().unwrap();
                 response
@@ -59,7 +69,11 @@ pub fn compression(mut response: Response, request: Request, setting: ServerSett
             }
             "deflate" => {
                 let mut encoder = DeflateEncoder::new(Vec::new(), Compression::default());
-                encoder.write(&body_content);
+                if let Err(err) = encoder.write(&body_content) {
+                    error!("{err}");
+
+                    continue;
+                }
 
                 body_content = encoder.finish().unwrap();
                 response
@@ -69,7 +83,11 @@ pub fn compression(mut response: Response, request: Request, setting: ServerSett
             }
             "zlib" => {
                 let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-                encoder.write(&body_content);
+                if let Err(err) = encoder.write(&body_content) {
+                    error!("{err}");
+
+                    continue;
+                }
 
                 body_content = encoder.finish().unwrap();
                 response
