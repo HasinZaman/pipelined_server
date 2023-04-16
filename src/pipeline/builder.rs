@@ -8,7 +8,7 @@ use std::{
     thread::{self, JoinHandle}, collections::HashMap,
 };
 
-use cyclic_data_types::list::List;
+use cyclic_data_types::{list::List, error::Error};
 use log::error;
 
 use crate::{
@@ -30,7 +30,7 @@ use super::{
 type ParserFunc = fn(&mut TcpStream) -> Result<Request, ResponseStatusCode>;
 type ActionFunc<U> = fn(
     &Result<Request, ResponseStatusCode>,
-    ServerSetting,
+    &ServerSetting,
     utility_thread: &mut mpsc::Sender<U>,
 ) -> Result<Response, ResponseStatusCode>;
 type CompressionFunc = fn(Response, Option<Request>, ServerSetting) -> Bytes;
@@ -255,14 +255,14 @@ fn build_action_thread<U: Send + 'static>(
     thread::spawn(move || {
         let mut utility_access = utility_access;
         loop {
-                Err(_) => continue,
 
-                None => continue,
+            let (stream, action_cmd) = match dequeue(&input_queue){
+                Some(val) => val,
+                None => continue
             };
 
             //action upon data
             let server_settings = (&*server_settings.read().unwrap()).clone();
-                }
 
             let response = match func(&action_cmd, &server_settings, &mut utility_access) {
                 Ok(val) => val,
@@ -275,6 +275,14 @@ fn build_action_thread<U: Send + 'static>(
                                 status: err,
                                 header: HashMap::new(),
                                 body: None,
+                            }
+                        },
+                    }
+                },
+            };
+
+            if let Err(err) = enqueue(output_queue.clone(), (stream, response, Some(action_cmd.unwrap()))) {
+                error!("{err:?}");
             }
         }
     })
@@ -374,3 +382,11 @@ fn enqueue<const T: usize, U>(queue: Arc<Mutex<List<T, U, false>>>, value: U) ->
         Ok(queue) => {
             queue.push_back(value)
         },
+        Err(_) => todo!(),
+    };
+
+    match result {
+        Ok(_) => Ok(()),
+        Err(err) => Err(err),
+    }
+}
