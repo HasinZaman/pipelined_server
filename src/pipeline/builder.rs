@@ -5,7 +5,7 @@ use std::{
         mpsc::{self, Sender, Receiver},
         Arc, Mutex, RwLock,
     },
-    thread::{self, JoinHandle},
+    thread::{self, JoinHandle}, collections::HashMap,
 };
 
 use cyclic_data_types::list::List;
@@ -255,32 +255,26 @@ fn build_action_thread<U: Send + 'static>(
     thread::spawn(move || {
         let mut utility_access = utility_access;
         loop {
-            //get control of input queue
-            let mut input_queue = match input_queue.try_lock() {
-                Ok(val) => val,
                 Err(_) => continue,
-            };
 
-            let input_queue = &mut *input_queue;
-
-            //get first element in queue
-            let (stream, action_cmd) = match input_queue.remove_front() {
-                Some(value) => value,
                 None => continue,
             };
 
             //action upon data
             let server_settings = (&*server_settings.read().unwrap()).clone();
-            match func(&action_cmd, server_settings, &mut utility_access) {
-                Ok(val) => {
-                    let _ = output_queue
-                        .lock()
-                        .unwrap()
-                        .push_back((stream, val, action_cmd.ok()));
                 }
+
+            let response = match func(&action_cmd, &server_settings, &mut utility_access) {
+                Ok(val) => val,
                 Err(err) => {
-                    let _ = input_queue.push_front((stream, Err(err))); //convert error into raw bytes
-                }
+                    match func(&Err(err), &server_settings, &mut utility_access) {
+                        Ok(val) => val,
+                        Err(_) => {
+                            error!("Failed get error response");
+                            Response{
+                                status: err,
+                                header: HashMap::new(),
+                                body: None,
             }
         }
     })
@@ -370,3 +364,13 @@ fn dequeue<const T: usize, U>(queue: &Arc<Mutex<List<T, U, false>>>) -> Option<U
     //get first element in queue
     input_queue.remove_front()
 }
+
+fn enqueue<const T: usize, U>(queue: Arc<Mutex<List<T, U, false>>>, value: U) -> Result<(), Error> {
+    // functions ensures locking is localized to function rather than lifetime of loop
+    // with the goal of minimizing chance of poisoning lock
+    let mut queue = queue.lock();
+
+    let result = match &mut queue {
+        Ok(queue) => {
+            queue.push_back(value)
+        },

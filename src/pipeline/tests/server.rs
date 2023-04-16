@@ -40,7 +40,7 @@ fn server_initialization(
     parser: fn(&mut TcpStream) -> Result<Request, ResponseStatusCode>,
     action: fn(
         &Result<Request, ResponseStatusCode>,
-        ServerSetting,
+        &ServerSetting,
         &mut Sender<(PathBuf, Sender<Result<Vec<u8>, FileError>>)>,
     ) -> Result<Response, ResponseStatusCode>,
     compression: fn(Response, Option<Request>, ServerSetting) -> Vec<u8>,
@@ -151,7 +151,7 @@ fn default_one_request_one_pipeline() {
             data
         },
         |request: &Result<Request, ResponseStatusCode>,
-         setting: ServerSetting,
+         setting: &ServerSetting,
          utility_thread: &mut FileUtilitySender<FileError>| {
             trace!("Staring action 💪");
             let data = default::action(request, setting, utility_thread);
@@ -232,7 +232,7 @@ fn default_one_request_four_pipeline() {
             data
         },
         |request: &Result<Request, ResponseStatusCode>,
-         setting: ServerSetting,
+         setting: &ServerSetting,
          utility_thread: &mut FileUtilitySender<FileError>| {
             trace!("Staring action 💪");
             let data = default::action(request, setting, utility_thread);
@@ -316,7 +316,7 @@ fn default_four_request_one_pipeline() {
             data
         },
         |request: &Result<Request, ResponseStatusCode>,
-         setting: ServerSetting,
+         setting: &ServerSetting,
          utility_thread: &mut FileUtilitySender<FileError>| {
             trace!("Staring action 💪");
             let data = default::action(request, setting, utility_thread);
@@ -401,7 +401,7 @@ fn default_eight_request_four_pipeline() {
             data
         },
         |request: &Result<Request, ResponseStatusCode>,
-         setting: ServerSetting,
+         setting: &ServerSetting,
          utility_thread: &mut FileUtilitySender<FileError>| {
             trace!("Staring action 💪");
             let data = default::action(request, setting, utility_thread);
@@ -505,7 +505,7 @@ fn default_eight_request_four_pipeline_two_file() {
             data
         },
         |request: &Result<Request, ResponseStatusCode>,
-         setting: ServerSetting,
+         setting: &ServerSetting,
          utility_thread: &mut FileUtilitySender<FileError>| {
             trace!("Staring action 💪");
             let data = default::action(request, setting, utility_thread);
@@ -623,7 +623,7 @@ fn default_compression_one_pipeline() {
             data
         },
         |request: &Result<Request, ResponseStatusCode>,
-         setting: ServerSetting,
+         setting: &ServerSetting,
          utility_thread: &mut FileUtilitySender<FileError>| {
             trace!("Staring action 💪");
             let data = default::action(request, setting, utility_thread);
@@ -786,7 +786,7 @@ fn default_parser_error_recovery_one_pipeline() {
             data
         },
         |request: &Result<Request, ResponseStatusCode>,
-         setting: ServerSetting,
+         setting: &ServerSetting,
          utility_thread: &mut FileUtilitySender<FileError>| {
             trace!("Staring action 💪");
             let data = default::action(request, setting, utility_thread);
@@ -877,7 +877,7 @@ fn default_action_error_recovery_one_pipeline() {
             data
         },
         |request: &Result<Request, ResponseStatusCode>,
-         setting: ServerSetting,
+         setting: &ServerSetting,
          utility_thread: &mut FileUtilitySender<FileError>| {
             trace!("Staring action 💪");
             if let Ok(Request(Method::Get { file }, _)) = request {
@@ -974,7 +974,7 @@ fn default_compressor_error_recovery_one_pipeline() {
             data
         },
         |request: &Result<Request, ResponseStatusCode>,
-         setting: ServerSetting,
+         setting: &ServerSetting,
          utility_thread: &mut FileUtilitySender<FileError>| {
             trace!("Staring action 💪");
             let data = default::action(request, setting, utility_thread);

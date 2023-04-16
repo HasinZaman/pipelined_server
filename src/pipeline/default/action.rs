@@ -48,7 +48,7 @@ macro_rules! ActionBuilder {
         use paste::paste;
 
         paste!{
-            pub fn [<$name>] (request: &Result<Request, ResponseStatusCode>, setting: ServerSetting, utility_thread: &mut $utility) -> Result<Response, ResponseStatusCode> {
+            pub fn [<$name>] (request: &Result<Request, ResponseStatusCode>, setting: &ServerSetting, utility_thread: &mut $utility) -> Result<Response, ResponseStatusCode> {
                 match request{
                     Ok(request) => {
                         match &request.0 {
@@ -154,7 +154,7 @@ pub fn not_allowed_logic(
 
 pub fn default_err_page(
     err_code: &ResponseStatusCode,
-    _: ServerSetting,
+    _: &ServerSetting,
     _: &FileUtilitySender<FileError>,
 ) -> Response {
     Response {
