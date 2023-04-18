@@ -21,6 +21,8 @@ paste = "*"
 #should be put into default module
 flate2 = "*"
 
+[features]
+default_impl = []
 
 [dev-dependencies]
 rand = "*"
