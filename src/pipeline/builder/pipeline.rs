@@ -19,7 +19,7 @@ use crate::{
     setting::ServerSetting,
 };
 
-use super::{
+use super::super::{
     component::Component,
     pipeline::{
         ActionComponent, ActionQueue, Bytes, CompressionComponent, CompressionQueue,

@@ -20,87 +20,8 @@ use crate::{
         response::{response_status_code::ResponseStatusCode, Response},
     },
     pipeline::pipeline::Bytes,
-    setting::{ServerSetting},
+    setting::{ServerSetting}, ActionBuilder,
 };
-
-type MethodFn = fn(Request, &ServerSetting) -> Result<Response, ResponseStatusCode>;
-type ErrFn = fn(ResponseStatusCode, ServerSetting) -> Response;
-
-#[macro_export]
-macro_rules! ActionBuilder {
-    (
-        name = $name: ident,
-
-        utility = $utility: ty,
-
-        get = $get: ident,
-        head = $head: ident,
-        post = $post: ident,
-        put = $put: ident,
-        delete = $delete: ident,
-        connect = $connect: ident,
-        options =$options: ident,
-        trace = $trace: ident,
-        patch = $patch: ident,
-
-        error = $err: ident
-     ) => {
-        use paste::paste;
-
-        paste!{
-            pub fn [<$name>] (request: &Result<Request, ResponseStatusCode>, setting: &ServerSetting, utility_thread: &mut $utility) -> Result<Response, ResponseStatusCode> {
-                match request{
-                    Ok(request) => {
-                        match &request.0 {
-                            Method::Get { .. } => {
-                                trace!("Get");
-                                $get(request, &setting, utility_thread)
-                            },
-                            Method::Head { .. } => {
-                                trace!("Head");
-                                $head(request, &setting, utility_thread)
-                            },
-                            Method::Post { .. } => {
-                                trace!("Post");
-                                $post(request, &setting, utility_thread)
-                            },
-                            Method::Put { .. } => {
-                                trace!("Put");
-                                $put(request, &setting, utility_thread)
-                            },
-                            Method::Delete { .. } => {
-                                trace!("Delete");
-                                $delete(request, &setting, utility_thread)
-                            },
-                            Method::Connect { .. } => {
-                                trace!("Connect");
-                                $connect(request, &setting, utility_thread)
-                            },
-                            Method::Options { .. } => {
-                                trace!("Options");
-                                $options(request, &setting, utility_thread)
-                            },
-                            Method::Trace { .. } => {
-                                trace!("Trace");
-                                $trace(request, &setting, utility_thread)
-                            },
-                            Method::Patch { .. } => {
-                                trace!("Patch");
-                                $patch(request, &setting, utility_thread)
-                            },
-                        }
-                    },
-                    Err(err_code) => {
-                        trace!("Error");
-                        return Ok(
-                            $err(err_code, setting, utility_thread)
-                        )
-                    },
-                }
-            }
-        }
-    }
-}
 
 ActionBuilder!(
     name = default_action,
@@ -116,33 +37,6 @@ ActionBuilder!(
     patch = not_allowed_logic,
     error = default_err_page
 );
-
-// pub fn build(self) -> Box<dyn Fn(Result<Request, ResponseStatusCode>,ServerSetting) -> Result<Response, ResponseStatusCode>> {
-//     Box::new(
-//         |request: Result<Request, ResponseStatusCode>, setting: ServerSetting| -> Result<Response, ResponseStatusCode> {
-//             match request{
-//                 Ok(request) => {
-//                     match request.0 {
-//                         Method::Get { file } => (self.get)(request, &setting),
-//                         Method::Head { file } => (self.head)(request, &setting),
-//                         Method::Post { file, body } => (self.post)(request, &setting),
-//                         Method::Put { file, body } => (self.put)(request, &setting),
-//                         Method::Delete { file, body } => (self.delete)(request, &setting),
-//                         Method::Connect { url } => (self.connect)(request, &setting),
-//                         Method::Options { url } => (self.options)(request, &setting),
-//                         Method::Trace { file } => (self.trace)(request, &setting),
-//                         Method::Patch { file, body } => (self.patch)(request, &setting),
-//                     }
-//                 },
-//                 Err(err_code) => {
-//                     return Ok(
-//                         (self.error_page)(err_code, setting)
-//                     )
-//                 },
-//             }
-//         }
-//     )
-// }
 
 pub fn not_allowed_logic(
     _: &Request,

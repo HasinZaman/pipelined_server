@@ -17,19 +17,13 @@ use crate::{
     file::FileError,
     http::{
         request::Request,
-        response::{response_status_code::ResponseStatusCode, Response}, method::Method,
+        response::{response_status_code::ResponseStatusCode, Response},
     },
-    logging::logger_init,
     pipeline::{
-        builder::Builder,
-        default::{
-            self,
-            action::{generate_read_only_file_utility_thread, FileUtilitySender, NO_BOUND},
-        },
+        builder::pipeline::Builder,
         Server,
     },
     setting::{DomainPath, ServerSetting},
-    test_tools::file_env::FileEnv,
 };
 
 const ADDRESS: &str = "localhost";
@@ -135,18 +129,15 @@ mod request_test{
             file::FileError,
             http::{
                 request::Request,
-                response::{response_status_code::ResponseStatusCode, Response}, method::Method,
+                response::{response_status_code::ResponseStatusCode, Response},
             },
-            logging::logger_init,
             pipeline::{
-                builder::Builder,
                 default::{
                     self,
                     action::{generate_read_only_file_utility_thread, FileUtilitySender, NO_BOUND},
-                },
-                Server, tests::server::{server_initialization, ADDRESS, PORT},
+                }, tests::server::{server_initialization, ADDRESS, PORT},
             },
-            setting::{DomainPath, ServerSetting},
+            setting::{ServerSetting},
             test_tools::file_env::FileEnv,
         };
 
