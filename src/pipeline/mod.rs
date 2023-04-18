@@ -8,9 +8,10 @@ use log::{trace, error};
 
 use crate::setting::ServerSetting;
 
-use self::{builder::Builder, pipeline::Pipeline};
+use self::{builder::pipeline::Builder, pipeline::Pipeline};
 
 #[cfg(test)]
+//#[cfg(all(feature = "default_impl", test))]
 mod tests;
 
 pub mod builder;
@@ -18,7 +19,8 @@ mod component;
 mod pipeline;
 pub mod utility_thread;
 
-mod default;
+//#[cfg(feature = "default_impl")]
+pub mod default;
 
 struct Server<U: Clone + Send + 'static> {
     settings: ServerSetting,

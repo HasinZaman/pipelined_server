@@ -1,31 +1,3 @@
-use std::{
-    collections::HashMap,
-    fs::read,
-    mem,
-    path::PathBuf,
-    sync::{
-        mpsc::{self, Sender},
-    },
-    thread::{self, JoinHandle},
-};
-
-use log::{error, info, trace, warn};
-
-use crate::{
-    file::{self, FileError},
-    http::{
-        body::{Body, ContentType, Text},
-        method::{Method},
-        request::Request,
-        response::{response_status_code::ResponseStatusCode, Response},
-    },
-    pipeline::pipeline::Bytes,
-    setting::{ServerSetting},
-};
-
-type MethodFn = fn(Request, &ServerSetting) -> Result<Response, ResponseStatusCode>;
-type ErrFn = fn(ResponseStatusCode, ServerSetting) -> Response;
-
 #[macro_export]
 macro_rules! ActionBuilder {
     (
