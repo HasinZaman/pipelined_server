@@ -56,12 +56,15 @@ pub fn compression(mut response: Response, request: Option<Request>, _setting: S
             "gzip" => {
                 let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
                 if let Err(err) = encoder.write(&body_content) {
+                if let Err(err) = encoder.write_all(&body_content) {
                     error!("{err}");
 
                     continue;
                 }
 
                 body_content = encoder.finish().unwrap();
+                println!("d'={:?}", body_content);
+                //println!("data:{body_content:?}");
                 response
                     .header
                     .insert(String::from("Content-Encoding"), String::from("gzip"));
@@ -69,7 +72,7 @@ pub fn compression(mut response: Response, request: Option<Request>, _setting: S
             }
             "deflate" => {
                 let mut encoder = DeflateEncoder::new(Vec::new(), Compression::default());
-                if let Err(err) = encoder.write(&body_content) {
+                if let Err(err) = encoder.write_all(&body_content) {
                     error!("{err}");
 
                     continue;
@@ -83,7 +86,7 @@ pub fn compression(mut response: Response, request: Option<Request>, _setting: S
             }
             "zlib" => {
                 let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-                if let Err(err) = encoder.write(&body_content) {
+                if let Err(err) = encoder.write_all(&body_content) {
                     error!("{err}");
 
                     continue;
