@@ -17,7 +17,6 @@ mod tests;
 pub mod builder;
 mod component;
 mod pipeline;
-pub mod utility_thread;
 
 //#[cfg(feature = "default_impl")]
 pub mod default;

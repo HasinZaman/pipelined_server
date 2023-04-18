@@ -10,7 +10,7 @@ mod get_file {
 
     use rand::Rng;
 
-    use crate::{pipeline::utility_thread::UtilityThread, test_tools::file_env::FileEnv};
+    use crate::{test_tools::file_env::FileEnv};
 
     enum Command {
         GetFile(String),
@@ -37,67 +37,67 @@ mod get_file {
         }
     }
 
-    #[test]
-    fn file_reading_test() {
-        let (file_names, file_content) = generate_files(100, 100..1000);
+    // #[test]
+    // fn file_reading_test() {
+    //     let (file_names, file_content) = generate_files(100, 100..1000);
 
-        assert_eq!(file_names.len(), file_content.len());
+    //     assert_eq!(file_names.len(), file_content.len());
 
-        let _env_vars: Vec<FileEnv> = file_names
-            .iter()
-            .zip(file_content.iter())
-            .map(|(file_name, content)| FileEnv::new(file_name, content))
-            .collect();
+    //     let _env_vars: Vec<FileEnv> = file_names
+    //         .iter()
+    //         .zip(file_content.iter())
+    //         .map(|(file_name, content)| FileEnv::new(file_name, content))
+    //         .collect();
 
-        let utility: UtilityThread<Command, UtilityData> = UtilityThread::new(get_file);
+    //     let utility: UtilityThread<Command, UtilityData> = UtilityThread::new(get_file);
 
-        let sender = utility.sender.clone();
+    //     let sender = utility.sender.clone();
 
-        file_names
-            .into_iter()
-            .enumerate()
-            .map(|(i1, path)| {
-                let sender = sender.clone();
+    //     file_names
+    //         .into_iter()
+    //         .enumerate()
+    //         .map(|(i1, path)| {
+    //             let sender = sender.clone();
 
-                thread::spawn(move || {
-                    let (tx, rx) = mpsc::channel();
-                    sender
-                        .send((Command::GetFile(path.to_string()), tx))
-                        .unwrap();
+    //             thread::spawn(move || {
+    //                 let (tx, rx) = mpsc::channel();
+    //                 sender
+    //                     .send((Command::GetFile(path.to_string()), tx))
+    //                     .unwrap();
 
-                    let result = rx.recv().unwrap();
+    //                 let result = rx.recv().unwrap();
 
-                    let UtilityData::GetFile(content) = result.clone();
+    //                 let UtilityData::GetFile(content) = result.clone();
 
-                    match content {
-                        Ok(content) => println!(
-                            "{i1}\t:\t{path}\t:\t{:?}...",
-                            content.chars().collect::<Vec<char>>().get(0..5)
-                        ),
-                        Err(_) => {}
-                    };
+    //                 match content {
+    //                     Ok(content) => println!(
+    //                         "{i1}\t:\t{path}\t:\t{:?}...",
+    //                         content.chars().collect::<Vec<char>>().get(0..5)
+    //                     ),
+    //                     Err(_) => {}
+    //                 };
 
-                    result
-                })
-            })
-            .map(|thread| thread.join().unwrap())
-            .zip(
-                file_content
-                    .into_iter()
-                    .map(|content| UtilityData::GetFile(Ok(content.to_string()))),
-            )
-            .for_each(|(actual, expected)| {
-                assert_eq!(actual, expected);
-            });
+    //                 result
+    //             })
+    //         })
+    //         .map(|thread| thread.join().unwrap())
+    //         .zip(
+    //             file_content
+    //                 .into_iter()
+    //                 .map(|content| UtilityData::GetFile(Ok(content.to_string()))),
+    //         )
+    //         .for_each(|(actual, expected)| {
+    //             assert_eq!(actual, expected);
+    //         });
 
-        let (tx, rx) = mpsc::channel();
+    //     let (tx, rx) = mpsc::channel();
 
-        sender
-            .send((Command::GetFile(String::from("Fake_File.txt")), tx))
-            .unwrap();
+    //     sender
+    //         .send((Command::GetFile(String::from("Fake_File.txt")), tx))
+    //         .unwrap();
 
-        assert_eq!(rx.recv().unwrap(), UtilityData::GetFile(Err(())));
-    }
+    //     assert_eq!(rx.recv().unwrap(), UtilityData::GetFile(Err(())));
+    // }
 
     fn generate_files(count: usize, file_size: Range<usize>) -> (Vec<String>, Vec<String>) {
         let mut names = Vec::with_capacity(count);
