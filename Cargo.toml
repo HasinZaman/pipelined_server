@@ -15,7 +15,6 @@ cyclic_data_types = {git="https://github.com/HasinZaman/cyclic_data_structures",
 
 log = "*"
 
-#should be put into default module
 paste = "*"
 
 #should be put into default module
