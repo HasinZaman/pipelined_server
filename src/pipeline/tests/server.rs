@@ -1,17 +1,12 @@
-// default no compression pipeline test
-
 use std::{
     collections::HashMap,
-    io::{Read, Write},
     net::TcpStream,
     path::PathBuf,
-    sync::{mpsc::{Sender}, Arc, Condvar, Mutex, RwLock},
-    thread::{self, JoinHandle}, time::Duration,
+    sync::{mpsc::{Sender}, Arc, Condvar, Mutex},
+    thread::{self, JoinHandle},
 };
 use cyclic_data_types::list::List;
-use flate2::{Compression, write::{GzEncoder, DeflateEncoder, ZlibEncoder}, read::{GzDecoder, DeflateDecoder, ZlibDecoder}};
-use log::{trace, error};
-use serial_test::serial;
+use log::{trace};
 
 use crate::{
     file::FileError,
