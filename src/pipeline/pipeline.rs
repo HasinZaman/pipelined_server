@@ -34,7 +34,7 @@ pub(super) type CompressionComponent =
     Component<MutexWrapper<CompressionQueue>, MutexWrapper<SenderQueue>, ()>;
 pub(super) type SenderComponent = Component<MutexWrapper<SenderQueue>, (), ()>;
 
-pub struct Pipeline<U: Clone> {
+pub struct Pipeline {
     //get connection
     pub(super) parser: ParserComponent,
 
@@ -46,12 +46,9 @@ pub struct Pipeline<U: Clone> {
 
     //sender
     pub(super) sender: SenderComponent,
-
-    //utility thread
-    pub(super) utility_access: U,
 }
 
-impl<U: Clone> Pipeline<U> {
+impl Pipeline {
     pub fn pipeline_state(&self) -> bool {
         self.parser.thread_state()
             && self.action.thread_state()
@@ -60,14 +57,14 @@ impl<U: Clone> Pipeline<U> {
     }
 }
 
-impl<U: Clone> Display for Pipeline<U> {
+impl Display for Pipeline {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let ptr = ptr::addr_of!(self);
         write!(fmt, "Pipeline({})", ptr as usize)
     }
 }
 
-impl<U: Clone> Debug for Pipeline<U> {
+impl Debug for Pipeline {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fmt.debug_struct("Pipeline")
             .field("parser component state", &self.parser.thread_state())

@@ -76,7 +76,7 @@ impl<U: Clone + Send + 'static> Builder<U> {
         self
     }
 
-    pub fn build(&self) -> (Sender<TcpStream>, Pipeline<mpsc::Sender<U>>) {
+    pub fn build(&self) -> (Sender<TcpStream>, Pipeline) {
         //building components back to front to deal with input queue dependencies & ownership issues
         let (sender_queue, sender) = build_sender_component();
 
@@ -112,14 +112,13 @@ impl<U: Clone + Send + 'static> Builder<U> {
             parser: parser,
             action: action,
             compression: compression,
-            sender: sender,
-            utility_access: self.utility_sender.clone().unwrap(),
+            sender: sender
         };
 
         (new_conn, pipeline)
     }
 
-    pub fn fix(&self, pipeline: &mut Pipeline<mpsc::Sender<U>>) -> Result<(), ()> {
+    pub fn fix(&self, pipeline: &mut Pipeline) -> Result<(), ()> {
         if !pipeline.sender.thread_state() {
             error!("{pipeline} - Sender component panic");
             let input_queue = pipeline.sender.input_queue.clone();

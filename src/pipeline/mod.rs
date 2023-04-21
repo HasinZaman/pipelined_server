@@ -47,7 +47,7 @@ impl<U: Clone + Send + 'static> Server<U> {
         let (senders, mut pipes) = {
 
             let mut sender: Vec<Sender<TcpStream>> = Vec::new();
-            let mut pipes: Vec<Pipeline<Sender<U>>> = Vec::new();
+            let mut pipes: Vec<Pipeline> = Vec::new();
 
             (0..PIPELINES).map(|_| self.builder.build())
                 .for_each(|(s,p)| {
@@ -56,7 +56,7 @@ impl<U: Clone + Send + 'static> Server<U> {
                 });
 
             let sender : [Sender<TcpStream>; PIPELINES] =  sender.try_into().unwrap();
-            let pipes : [Pipeline<Sender<U>>; PIPELINES] =  pipes.try_into().unwrap();
+            let pipes : [Pipeline; PIPELINES] =  pipes.try_into().unwrap();
 
             (sender, pipes)
         };
