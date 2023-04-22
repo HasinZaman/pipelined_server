@@ -17,7 +17,9 @@ pub fn parser<const BUFFER_SIZE: usize, const MAX_SIZE: usize>(
                 break;
             }
             Ok(read_size) => {
-                if MAX_SIZE < request_size + read_size {
+                request_size += read_size;
+
+                if MAX_SIZE < request_size {
                     return Err(ResponseStatusCode::PayloadTooLarge);
                 }
 
@@ -27,9 +29,6 @@ pub fn parser<const BUFFER_SIZE: usize, const MAX_SIZE: usize>(
                 };
 
                 request_str.push_str(&slice);
-
-                request_size += read_size;
-                break;
             }
             Err(_err) => return Err(ResponseStatusCode::BadRequest),
         }
