@@ -51,11 +51,17 @@ pub fn compression(mut response: Response, request: Option<Request>, _setting: S
 
     trace!("accepted encoder:{:?}", accepted);
 
-    for decoder in accepted.split(',') {
+    let mut iter = accepted.split(',').peekable();
+
+    if let None = &iter.peek() {
+        return response.as_bytes();
+    }
+
+    for decoder in iter {
         match decoder {
             "gzip" => {
-                let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-                if let Err(err) = encoder.write(&body_content) {
+                println!("d={:?}", body_content);
+                let mut encoder = GzEncoder::new(Vec::new(), Compression::none());
                 if let Err(err) = encoder.write_all(&body_content) {
                     error!("{err}");
 
@@ -112,12 +118,3 @@ pub fn compression(mut response: Response, request: Option<Request>, _setting: S
     return response.as_bytes();
 }
 
-// impl Default for Builder<FileUtility> {
-//     fn default() -> Self {
-//         Self {
-//             parser: parser::<1024, 262144>,
-//             action: default_action,
-//             compression: compression,
-//         }
-//     }
-// }
