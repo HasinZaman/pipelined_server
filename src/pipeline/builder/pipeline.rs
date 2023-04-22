@@ -329,7 +329,7 @@ fn build_compressor_thread(
 
             //compress data and push to next pipe
             match enqueue(output_queue.clone(), (stream, func(response, request, server_settings.clone()))) {
-                Ok(_) => {trace!("Begin compression");},
+                Ok(_) => {trace!("end compression");},
                 Err(err) => error!("{err:?}"),
             }
         }
