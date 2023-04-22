@@ -362,7 +362,7 @@ fn build_sender_thread(
             //send data
             let mut i1: i32 = 0;
             'write_loop: for chunk in bytes.chunks(4) {
-                if let Err(err) = stream.write(chunk) {
+                if let Err(err) = stream.write_all(chunk) {
                     error!("Failed to write: {err}");
                     break 'write_loop;
                 }
