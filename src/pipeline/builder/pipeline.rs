@@ -223,7 +223,14 @@ fn build_parser_thread(
                         .unwrap()
                         .push_back((tcp_stream, Ok(val)));
                 }
-                Err(_) => todo!(), //send error message
+                Err(err) => {
+                    error!("failed to parse: {}",err);
+
+                    let _ = output_queue
+                        .lock()
+                        .unwrap()
+                        .push_back((tcp_stream, Err(err)));
+                },
             }
         }
     })
