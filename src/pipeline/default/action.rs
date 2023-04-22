@@ -113,6 +113,8 @@ pub fn default_get_logic(
 ) -> Result<Response, ResponseStatusCode> {
     let Request(method, meta_data) = request;
 
+    info!("Request: {method:?}\n {meta_data:?}");
+
     let host: &str = match meta_data.get("host") {
         Some(host) => host,
         None => return Err(ResponseStatusCode::ImATeapot),
