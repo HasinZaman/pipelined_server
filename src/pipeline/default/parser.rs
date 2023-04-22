@@ -33,7 +33,7 @@ pub fn parser<const BUFFER_SIZE: usize, const MAX_SIZE: usize>(
                 request_str.push_str(&slice);
             }
             Err(err) => {
-                error!("{}", err);
+                error!("error:{err}\nrequest size:{request_size}\nrequest str:{request_str}");
                 return Err(ResponseStatusCode::BadRequest)
             },
         }
