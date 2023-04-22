@@ -189,6 +189,8 @@ pub fn default_get_logic(
 
                 let content = bytes;
 
+                trace!("Action function completed");
+
                 return Ok(Response {
                     status: ResponseStatusCode::Ok,
                     header: HashMap::new(),
