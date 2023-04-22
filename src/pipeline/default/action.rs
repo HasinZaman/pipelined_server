@@ -177,9 +177,11 @@ pub fn default_get_logic(
         }
     }
 
+    trace!("Waiting for file retrieval response");
     match rx.recv() {
         Ok(bytes) => match bytes {
             Ok(bytes) => {
+                trace!("File retrieved");
                 let content_type = match ContentType::try_from(ext.as_str()) {
                     Ok(content_type) => content_type,
                     Err(_err) => todo!(),
