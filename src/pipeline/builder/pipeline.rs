@@ -368,13 +368,15 @@ fn build_sender_thread(
                     error!("Failed to write: {err}");
                     break 'write_loop;
                 }
+                
+                if let Err(err) = stream.flush() {
+                    error!("Failed to close: {err}");
+                }
+                
                 i1+=1;
                 println!("{i1}");
             }
 
-            if let Err(err) = stream.flush() {
-                error!("Failed to close: {err}");
-            }
         }
     })
 }
