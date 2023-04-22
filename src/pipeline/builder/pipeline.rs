@@ -360,8 +360,11 @@ fn build_sender_thread(
             trace!("sending bytes");
 
             //send data
-            if let Err(err) = stream.write(&bytes) {
-                error!("Failed to write: {err}");
+            'write_loop: for chunk in bytes.chunks(64) {
+                if let Err(err) = stream.write(chunk) {
+                    error!("Failed to write: {err}");
+                    break 'write_loop;
+                }
             }
 
             if let Err(err) = stream.flush() {
