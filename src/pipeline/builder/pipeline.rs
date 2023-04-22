@@ -9,7 +9,7 @@ use std::{
 };
 
 use cyclic_data_types::{list::List, error::Error};
-use log::error;
+use log::{error, trace};
 
 use crate::{
     http::{
@@ -287,8 +287,9 @@ fn build_action_thread<U: Send + 'static>(
                 },
             };
 
-            if let Err(err) = enqueue(output_queue.clone(), (stream, response, action_cmd.ok())) {
-                error!("{err:?}");
+            match enqueue(output_queue.clone(), (stream, response, action_cmd.ok())) {
+                Ok(_) => trace!("successful response generation"),
+                Err(err) => error!("{err:?}"),
             }
         }
     })
@@ -315,6 +316,8 @@ fn build_compressor_thread(
     server_settings: Arc<RwLock<ServerSetting>>
 ) -> JoinHandle<()> {
     thread::spawn(move || {
+        let server_settings = (&*server_settings.read().unwrap()).clone();
+
         loop {
             //get first element in queue
             let (stream, response, request) = match dequeue(&input_queue) {
@@ -322,12 +325,13 @@ fn build_compressor_thread(
                 None => continue,
             };
 
+            trace!("Begin compression");
+
             //compress data and push to next pipe
-            let server_settings = (&*server_settings.read().unwrap()).clone();
-            let _ = output_queue
-                .lock()
-                .unwrap()
-                .push_back((stream, func(response, request, server_settings)));
+            match enqueue(output_queue.clone(), (stream, func(response, request, server_settings.clone()))) {
+                Ok(_) => {trace!("Begin compression");},
+                Err(err) => error!("{err:?}"),
+            }
         }
     })
 }
