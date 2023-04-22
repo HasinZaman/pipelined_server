@@ -357,13 +357,15 @@ fn build_sender_thread(
                 None => continue,
             };
 
+            trace!("sending bytes");
+
             //send data
-            if let Err(_err) = stream.write(&bytes) {
-                todo!()
+            if let Err(err) = stream.write(&bytes) {
+                error!("Failed to write: {err}");
             }
 
-            if let Err(_err) = stream.flush() {
-                todo!()
+            if let Err(err) = stream.flush() {
+                error!("Failed to close: {err}");
             }
         }
     })
