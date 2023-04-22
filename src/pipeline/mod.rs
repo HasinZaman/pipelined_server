@@ -22,9 +22,8 @@ mod pipeline;
 pub mod default;
 
 pub struct Server<U: Clone + Send + 'static> {
-    settings: ServerSetting,
     builder: Builder<U>,
-    utility_thread: (Sender<U>, JoinHandle<()>),
+    _utility_thread: (Sender<U>, JoinHandle<()>),
 }
 
 impl<U: Clone + Send + 'static> Server<U> {
@@ -34,11 +33,10 @@ impl<U: Clone + Send + 'static> Server<U> {
         utility_thread: (Sender<U>, JoinHandle<()>),
         builder: Builder<U>,
     ) -> Server<U> {
-        let builder = builder.set_settings(settings.clone());
+        let builder = builder.set_settings(settings);
         Server {
-            settings,
             builder,
-            utility_thread,
+            _utility_thread: utility_thread,
         }
     }
 
