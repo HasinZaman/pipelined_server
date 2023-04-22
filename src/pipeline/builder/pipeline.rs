@@ -287,7 +287,7 @@ fn build_action_thread<U: Send + 'static>(
                 },
             };
 
-            if let Err(err) = enqueue(output_queue.clone(), (stream, response, Some(action_cmd.unwrap()))) {
+            if let Err(err) = enqueue(output_queue.clone(), (stream, response, action_cmd.ok())) {
                 error!("{err:?}");
             }
         }
