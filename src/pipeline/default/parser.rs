@@ -1,5 +1,7 @@
 use std::{io::Read, net::TcpStream, str::FromStr};
 
+use log::error;
+
 use crate::http::{request::Request, response::response_status_code::ResponseStatusCode};
 
 pub fn parser<const BUFFER_SIZE: usize, const MAX_SIZE: usize>(
@@ -30,7 +32,10 @@ pub fn parser<const BUFFER_SIZE: usize, const MAX_SIZE: usize>(
 
                 request_str.push_str(&slice);
             }
-            Err(_err) => return Err(ResponseStatusCode::BadRequest),
+            Err(err) => {
+                error!("{}", err);
+                return Err(ResponseStatusCode::BadRequest)
+            },
         }
     }
 

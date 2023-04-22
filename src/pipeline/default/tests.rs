@@ -210,7 +210,7 @@ mod parser {
             //send data
             let mut stream = TcpStream::connect(HOST).unwrap();
 
-            let _ = stream.write(b"GET /index.html  HTTP/1.1");
+            let _ = stream.write(b"GET /index.html HTTP/1.1");
         });
 
         {
@@ -224,7 +224,47 @@ mod parser {
         {
             let mut stream = listener.incoming().next().unwrap().unwrap();
 
-            let actual = parser::<10, 10>(&mut stream);
+            let actual = parser::<5, 5>(&mut stream);
+
+            assert_eq!(Err(ResponseStatusCode::PayloadTooLarge), actual);
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn too_large_buffer_request() {
+        const HOST: &str = "localhost:8080";
+        let listener = TcpListener::bind(HOST).unwrap();
+
+        let pair = Arc::new((Mutex::new(false), Condvar::new()));
+        let pair2 = Arc::clone(&pair);
+
+        let _thread = thread::spawn(move || {
+            let (lock, cvar) = &*pair2;
+            let mut started = lock.lock().unwrap();
+
+            while !*started {
+                started = cvar.wait(started).unwrap();
+            }
+
+            //send data
+            let mut stream = TcpStream::connect(HOST).unwrap();
+
+            let _ = stream.write(b"GET /index.html HTTP/1.1");
+        });
+
+        {
+            let mut start = pair.0.lock().unwrap();
+
+            *start = true;
+
+            pair.1.notify_one()
+        }
+
+        {
+            let mut stream = listener.incoming().next().unwrap().unwrap();
+
+            let actual = parser::<10, 100>(&mut stream);
 
             assert_eq!(Err(ResponseStatusCode::PayloadTooLarge), actual);
         }
