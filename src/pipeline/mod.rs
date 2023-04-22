@@ -21,7 +21,7 @@ mod pipeline;
 //#[cfg(feature = "default_impl")]
 pub mod default;
 
-struct Server<U: Clone + Send + 'static> {
+pub struct Server<U: Clone + Send + 'static> {
     settings: ServerSetting,
     builder: Builder<U>,
     utility_thread: (Sender<U>, JoinHandle<()>),
