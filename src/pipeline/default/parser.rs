@@ -1,41 +1,77 @@
-use std::{io::Read, net::TcpStream, str::FromStr};
+use std::{io::{Read, ErrorKind}, net::TcpStream, str::FromStr, time::{Duration, Instant}, thread, sync::mpsc};
 
 use log::error;
 
 use crate::http::{request::Request, response::response_status_code::ResponseStatusCode};
 
+// todo!() add constants to server settings
+const PACKET_TIMEOUT: u128 = 250;
+const READ_TIMEOUT: u64 = 1000;
+
 pub fn parser<const BUFFER_SIZE: usize, const MAX_SIZE: usize>(
     stream: &mut TcpStream,
 ) -> Result<Request, ResponseStatusCode> {
-    let mut buffer: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
 
     let mut request_str = String::new();
 
     let mut request_size = 0;
 
+    if let Err(_err) = stream.set_read_timeout(Some(Duration::from_millis(READ_TIMEOUT))) {
+        return Err(ResponseStatusCode::BadRequest)
+    };//max read time
+
+    let mut stream = stream.try_clone().unwrap();
+
+    let (tx, rx) = mpsc::channel();
+    let read_thread = thread::spawn(move || {
+        let mut buffer: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
+
+        loop {
+            match stream.read(&mut buffer) {
+                Ok(0) => {
+                    return Ok(());
+                },
+                Ok(read_size) => {
+                    tx.send((read_size, buffer)).unwrap();
+                },
+                Err(err) => {
+                    error!("{err}");
+                    return Err(err)
+                },
+            };
+        }
+    });
+
+    let mut initial_time = Instant::now();
     loop {
-        match stream.read(&mut buffer) {
-            Ok(0) => {
-                break;
+        let elapsed_time = initial_time.elapsed();
+
+        if elapsed_time.as_millis() > PACKET_TIMEOUT {
+            return Err(ResponseStatusCode::RequestTimeout);
+        }
+
+        if read_thread.is_finished() {
+            match read_thread.join() {
+                Ok(Ok(())) => break,
+                Ok(Err(ref err)) if err.kind() == ErrorKind::TimedOut => return Err(ResponseStatusCode::RequestTimeout),
+                Err(_) | Ok(Err(_)) => return Err(ResponseStatusCode::BadRequest),
             }
-            Ok(read_size) => {
-                request_size += read_size;
+        }
 
-                if MAX_SIZE < request_size {
-                    return Err(ResponseStatusCode::PayloadTooLarge);
-                }
+        if let Ok((read_size, buffer)) = rx.try_recv() {
+            request_size += read_size;
 
-                let slice = match String::from_utf8(buffer[..read_size].to_vec()) {
-                    Ok(val) => val,
-                    Err(_err) => return Err(ResponseStatusCode::BadRequest),
-                };
-
-                request_str.push_str(&slice);
+            if MAX_SIZE < request_size {
+                return Err(ResponseStatusCode::PayloadTooLarge);
             }
-            Err(err) => {
-                error!("error:{err}\nrequest size:{request_size}\nrequest str:{request_str}");
-                return Err(ResponseStatusCode::BadRequest)
-            },
+
+            let slice = match String::from_utf8(buffer[..read_size].to_vec()) {
+                Ok(val) => val,
+                Err(_err) => return Err(ResponseStatusCode::BadRequest),
+            };
+
+            request_str.push_str(&slice);
+            initial_time = Instant::now();
         }
     }
 
