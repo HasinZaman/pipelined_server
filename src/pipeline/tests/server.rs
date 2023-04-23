@@ -115,8 +115,8 @@ mod request_test{
     mod one_pipeline{
         use std::{
             io::{Read, Write},
-            net::TcpStream,
-            sync::{Arc, Condvar, Mutex},
+            net::{TcpStream, Shutdown},
+            sync::{Arc, Condvar, Mutex}, time::Duration,
         };
         use log::{trace};
         use serial_test::serial;
@@ -133,13 +133,13 @@ mod request_test{
                 }, tests::server::{server_initialization, ADDRESS, PORT},
             },
             setting::{ServerSetting},
-            test_tools::file_env::FileEnv,
+            test_tools::file_env::FileEnv, logging::logger_init,
         };
 
         #[test]
         #[serial]
         fn default_one() {
-            //logger_init();
+            logger_init();
 
             // create file environment
             let _file_1 = FileEnv::new("source\\file_1.html", "hello_world");
@@ -192,8 +192,13 @@ mod request_test{
                 let mut stream = TcpStream::connect(format!("{}:{}", ADDRESS, PORT)).unwrap();
 
                 let _ = stream.write(b"GET file_1.html HTTP/1.1\n\rhost:localhost");
-
+                stream.shutdown(Shutdown::Write).unwrap();
+                
                 trace!("Request sent 💽 📃💨 💻");
+                let timeout_duration = Duration::from_secs(20);
+                stream
+                    .set_read_timeout(Some(timeout_duration))
+                    .expect("set_read_timeout failed");
 
                 assert!(!server_thread.is_finished());
 
@@ -280,6 +285,7 @@ mod request_test{
                     trace!("Request {} sent 💽 📃💨 💻", i + 1);
                     let _ = streams[i]
                         .write(format!("GET request_{}.html HTTP/1.1\n\rhost:localhost", i + 1).as_bytes());
+                    streams[i].shutdown(Shutdown::Write).unwrap();
                 }
                 for i in 0..4 {
                     assert!(!server_thread.is_finished());
@@ -307,9 +313,9 @@ mod request_test{
     mod four_pipeline{
         use std::{
             io::{Read, Write},
-            net::TcpStream,
+            net::{TcpStream, Shutdown},
             sync::{Arc, Condvar, Mutex, RwLock},
-            thread::{self, JoinHandle},
+            thread::{self, JoinHandle}, time::Duration,
         };
         use log::{trace};
         use serial_test::serial;
@@ -387,7 +393,13 @@ mod request_test{
 
                 let _ = stream.write(b"GET file_1.html HTTP/1.1\n\rhost:localhost");
 
+                
                 trace!("Request sent 💽 📃💨 💻");
+
+                let timeout_duration = Duration::from_secs(5);
+                stream
+                    .set_read_timeout(Some(timeout_duration))
+                    .expect("set_read_timeout failed");
 
                 assert!(!server_thread.is_finished());
 
@@ -475,6 +487,7 @@ mod request_test{
                             
                             trace!("Request {} sent 💽 📃💨 💻", i+1);
                             let _ = stream.write(format!("GET request_{}.html HTTP/1.1\n\rhost:localhost", (i%4) + 1).as_bytes());
+                            stream.shutdown(Shutdown::Write).unwrap();
 
                             thread::spawn(
                                 move|| {
@@ -578,6 +591,7 @@ mod request_test{
                         
                         trace!("Request {} sent 💽 📃💨 💻", i+1);
                         let _ = stream.write(format!("GET request_{}.html HTTP/1.1\n\rhost:localhost", (i%2) + 1).as_bytes());
+                        stream.shutdown(Shutdown::Write).unwrap();
 
                         let file_1_content = file_1_content.clone();
                         let file_2_content = file_2_content.clone();
@@ -639,7 +653,7 @@ mod request_test{
 mod compression_test{
     use std::{
         io::{Read, Write},
-        net::TcpStream,
+        net::{TcpStream, Shutdown},
         sync::{Arc, Condvar, Mutex},
     };
     use flate2::{read::{GzDecoder, DeflateDecoder, ZlibDecoder}};
@@ -703,6 +717,7 @@ mod compression_test{
         {
             let mut stream = TcpStream::connect(format!("{}:{}", ADDRESS, PORT)).unwrap();
             assert!(stream.write(b"GET file_1.html HTTP/1.1\n\rhost:localhost").is_ok());
+            stream.shutdown(Shutdown::Write).unwrap();
 
             let mut data_buffer = [0; 128];
             let mut response = Vec::new();
@@ -776,6 +791,7 @@ mod compression_test{
         {
             let mut stream = TcpStream::connect(format!("{}:{}", ADDRESS, PORT)).unwrap();
             assert!(stream.write(b"GET file_1.html HTTP/1.1\n\rhost:localhost\n\rAccept-Encoding: gzip").is_ok());
+            stream.shutdown(Shutdown::Write).unwrap();
 
             let mut data_buffer = [0; 128];
             let mut response = Vec::new();
@@ -869,6 +885,7 @@ mod compression_test{
         {
             let mut stream = TcpStream::connect(format!("{}:{}", ADDRESS, PORT)).unwrap();
             assert!(stream.write(b"GET file_1.html HTTP/1.1\n\rhost:localhost\n\rAccept-Encoding: deflate").is_ok());
+            stream.shutdown(Shutdown::Write).unwrap();
 
             let mut data_buffer = [0; 128];
             let mut response = Vec::new();
@@ -962,6 +979,7 @@ mod compression_test{
         {
             let mut stream = TcpStream::connect(format!("{}:{}", ADDRESS, PORT)).unwrap();
             assert!(stream.write(b"GET file_1.html HTTP/1.1\n\rhost:localhost\n\rAccept-Encoding: zlib").is_ok());
+            stream.shutdown(Shutdown::Write).unwrap();
 
             let mut data_buffer = [0; 128];
             let mut response = Vec::new();
