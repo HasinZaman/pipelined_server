@@ -1,4 +1,4 @@
-use std::{io::{Read, ErrorKind}, net::TcpStream, str::FromStr, time::{Duration, Instant}, thread, sync::mpsc};
+use std::{io::{Read, ErrorKind}, net::{TcpStream, Shutdown}, str::FromStr, time::{Duration, Instant}, thread, sync::mpsc};
 
 use log::error;
 
@@ -20,14 +20,14 @@ pub fn parser<const BUFFER_SIZE: usize, const MAX_SIZE: usize>(
         return Err(ResponseStatusCode::BadRequest)
     };//max read time
 
-    let mut stream = stream.try_clone().unwrap();
+    let mut stream_tmp = stream.try_clone().unwrap();
 
     let (tx, rx) = mpsc::channel();
     let read_thread = thread::spawn(move || {
         let mut buffer: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
 
         loop {
-            match stream.read(&mut buffer) {
+            match stream_tmp.read(&mut buffer) {
                 Ok(0) => {
                     return Ok(());
                 },
@@ -74,6 +74,6 @@ pub fn parser<const BUFFER_SIZE: usize, const MAX_SIZE: usize>(
             initial_time = Instant::now();
         }
     }
-
+    stream.shutdown(Shutdown::Read);
     Request::from_str(&request_str).map_err(|_| ResponseStatusCode::BadRequest)
 }
