@@ -109,7 +109,40 @@ impl TryFrom<&str> for ContentType {
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         println!("{}", value);
         match value {
+            "css" => Ok(Self::Text(Text::css)),
+            "csv" => Ok(Self::Text(Text::csv)),
             "html" => Ok(Self::Text(Text::html)),
+            "js" | "cjs" | "mjs" => Ok(Self::Text(Text::javascript)),
+            "txt" => Ok(Self::Text(Text::plain)),
+            "xml" => Ok(Self::Text(Text::xml)),
+
+            "gif" => Ok(Self::Image(Image::gif)),
+            "jpg" | "jpeg" | "jpe" | "jif" | "jfif" | "jfi" => Ok(Self::Image(Image::jpeg)),
+            "png" => Ok(Self::Image(Image::png)),
+            "tiff" | "tif" => Ok(Self::Image(Image::tiff)),
+            "cur" => Ok(Self::Image(Image::vnd_microsoft_icon)),
+            "ico" => Ok(Self::Image(Image::x_icon)),
+            "djvu" | "djv" => Ok(Self::Image(Image::vnd_djvu)),
+            "svg" | "svgz" => Ok(Self::Image(Image::svg_xml)),
+            
+            "ogg" | "ogv" | "oga" | "ogx" | "ogm" | "spx" | "opus" => Ok(Self::Application(Application::ogg)),
+            "pdf" => Ok(Self::Application(Application::pdf)),
+            "xhtml" => Ok(Self::Application(Application::xhtml_xml)),
+            "json" => Ok(Self::Application(Application::json)),
+            "jsonld" => Ok(Self::Application(Application::ld_json)),
+            "zip" | "zipx" => Ok(Self::Application(Application::zip)),
+            "woff" | "woff2" => Ok(Self::Application(Application::woff)),
+
+            //"mpeg" => Ok(Self::Audio(Audio::mpeg)),
+            "wma" => Ok(Self::Audio(Audio::x_ms_wma)),
+            "ra" | "ram" => Ok(Self::Audio(Audio::vnd_rn_realaudio)),
+            "wav" | "wave" => Ok(Self::Audio(Audio::x_wav)),
+
+            "mp4" | "m4a" | "m4p" | "m4b" | "m4r" | "m4v" => Ok(Self::Video(Video::mp4)),
+            "wmv" => Ok(Self::Video(Video::x_ms_wmv)),
+            "avi" => Ok(Self::Video(Video::x_msvideo)),
+            "webm" => Ok(Self::Video(Video::webm)),
+            
             _ => todo!(),
         }
     }
