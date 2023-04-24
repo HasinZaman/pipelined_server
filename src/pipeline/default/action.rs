@@ -62,7 +62,7 @@ pub fn default_err_page<S>(
         status: *err_code,
     }
 }
-pub(crate) type FileUtilitySender<E> = mpsc::Sender<(PathBuf, Sender<Result<Bytes, E>>)>;
+pub type FileUtilitySender<E> = mpsc::Sender<(PathBuf, Sender<Result<Bytes, E>>)>;
 
 pub const NO_BOUND: usize = 0;
 pub fn generate_read_only_file_utility_thread<const MAX_READS: usize>(
