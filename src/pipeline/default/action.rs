@@ -38,18 +38,18 @@ ActionBuilder!(
     error = default_err_page
 );
 
-pub fn not_allowed_logic(
+pub fn not_allowed_logic<S>(
     _: &Request,
     _: &ServerSetting,
-    _: &FileUtilitySender<FileError>,
+    _: &S,
 ) -> Result<Response, ResponseStatusCode> {
     Err(ResponseStatusCode::MethodNotAllowed)
 }
 
-pub fn default_err_page(
+pub fn default_err_page<S>(
     err_code: &ResponseStatusCode,
     _: &ServerSetting,
-    _: &FileUtilitySender<FileError>,
+    _: &S,
 ) -> Response {
     Response {
         header: HashMap::new(),
