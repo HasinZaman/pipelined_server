@@ -1,5 +1,5 @@
 pub mod file;
-mod http;
+pub mod http;
 
 pub mod pipeline;
 pub mod setting;
