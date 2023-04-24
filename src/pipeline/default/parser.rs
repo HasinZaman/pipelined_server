@@ -16,7 +16,8 @@ pub fn parser<const BUFFER_SIZE: usize, const MAX_SIZE: usize>(
 
     let mut request_size = 0;
 
-    if let Err(_err) = stream.set_read_timeout(Some(Duration::from_millis(READ_TIMEOUT))) {
+    if let Err(err) = stream.set_read_timeout(Some(Duration::from_millis(READ_TIMEOUT))) {
+        error!("Failed to set read timeout: {err}");
         return Err(ResponseStatusCode::BadRequest)
     };//max read time
 
@@ -47,7 +48,9 @@ pub fn parser<const BUFFER_SIZE: usize, const MAX_SIZE: usize>(
         let elapsed_time = initial_time.elapsed();
 
         if elapsed_time.as_millis() > PACKET_TIMEOUT {
-            return Err(ResponseStatusCode::RequestTimeout);
+            break;
+            //error!("stream packet timeout: {} > {PACKET_TIMEOUT}",elapsed_time.as_millis());
+            //return Err(ResponseStatusCode::RequestTimeout);
         }
 
         if read_thread.is_finished() {
