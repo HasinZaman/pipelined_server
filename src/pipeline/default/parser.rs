@@ -78,7 +78,7 @@ pub fn parser<const BUFFER_SIZE: usize, const MAX_SIZE: usize, const PACKET_TIME
 
 pub fn single_read_parser<const MAX_SIZE: usize, const READ_TIMEOUT: u64>(stream: &mut TcpStream) -> Result<Request, ResponseStatusCode> {
     if let Err(err) = stream.set_read_timeout(Some(Duration::from_millis(READ_TIMEOUT))) {
-        error!("Failed to set read timeout: {err}");
+        error!("Failed to set read timeout: {err:#?}");
         return Err(ResponseStatusCode::BadRequest)
     };//max read time
 
@@ -89,7 +89,7 @@ pub fn single_read_parser<const MAX_SIZE: usize, const READ_TIMEOUT: u64>(stream
             String::from_utf8(buffer[..read_size].to_vec())
         },
         Err(err) => {
-            error!("{err}");
+            error!("Failed to read: {err:#?}");
             return Err(ResponseStatusCode::BadRequest)
         },
     };
@@ -97,10 +97,16 @@ pub fn single_read_parser<const MAX_SIZE: usize, const READ_TIMEOUT: u64>(stream
     match request_str {
         Ok(request_str) => {
             let _ = stream.shutdown(Shutdown::Read);
-            Request::from_str(&request_str).map_err(|_| ResponseStatusCode::BadRequest)
+            match Request::from_str(&request_str) {
+                Ok(request) => Ok(request),
+                Err(err) => {
+                    error!("Failed to convert str to request:{err:#?}");
+                    Err(ResponseStatusCode::BadRequest)
+                },
+            }
         },
         Err(err) => {
-            error!("{err}");
+            error!("failed to parse bytes into string: {err:#?}");
             return Err(ResponseStatusCode::BadRequest)
         },
     }
