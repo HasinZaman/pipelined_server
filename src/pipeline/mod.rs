@@ -77,7 +77,9 @@ impl<U: Clone + Send + 'static> Server<U> {
 
             let listener = match listener {
                 Ok(listener) => listener,
-                Err(_err) => todo!(),
+                Err(err) => {
+                    panic!("Failed to start server: {err}");
+                },
             };
 
             listener
