@@ -5,8 +5,8 @@ use log::error;
 use crate::http::{request::Request, response::response_status_code::ResponseStatusCode};
 
 // todo!() add constants to server settings
-const PACKET_TIMEOUT: u128 = 250;
-const READ_TIMEOUT: u64 = 1000;
+const PACKET_TIMEOUT: u128 = 20;
+const READ_TIMEOUT: u64 = 250;
 
 pub fn parser<const BUFFER_SIZE: usize, const MAX_SIZE: usize>(
     stream: &mut TcpStream,
