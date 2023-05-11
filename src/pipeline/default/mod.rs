@@ -6,7 +6,7 @@ use crate::{
 use super::pipeline::Bytes;
 
 pub mod action;
-mod parser;
+pub mod parser;
 
 #[cfg(test)]
 mod tests;
@@ -17,7 +17,6 @@ use flate2::{
     Compression,
 };
 use log::{trace, error};
-pub use parser::parser;
 use std::io::Write;
 
 pub fn no_compression(response: Response, _: Option<Request>, _: ServerSetting) -> Bytes {
