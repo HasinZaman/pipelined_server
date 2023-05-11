@@ -11,7 +11,7 @@ macro_rules! ActionBuilder {
         put = $put: ident,
         delete = $delete: ident,
         connect = $connect: ident,
-        options =$options: ident,
+        options = $options: ident,
         trace = $trace: ident,
         patch = $patch: ident,
 
@@ -25,45 +25,45 @@ macro_rules! ActionBuilder {
                     Ok(request) => {
                         match &request.0 {
                             Method::Get { .. } => {
-                                trace!("Get");
+                                trace!("Get:{request:#?}");
                                 $get(request, &setting, utility_thread)
                             },
                             Method::Head { .. } => {
-                                trace!("Head");
+                                trace!("Head:{request:#?}");
                                 $head(request, &setting, utility_thread)
                             },
                             Method::Post { .. } => {
-                                trace!("Post");
+                                trace!("Post:{request:#?}");
                                 $post(request, &setting, utility_thread)
                             },
                             Method::Put { .. } => {
-                                trace!("Put");
+                                trace!("Put:{request:#?}");
                                 $put(request, &setting, utility_thread)
                             },
                             Method::Delete { .. } => {
-                                trace!("Delete");
+                                trace!("Delete:{request:#?}");
                                 $delete(request, &setting, utility_thread)
                             },
                             Method::Connect { .. } => {
-                                trace!("Connect");
+                                trace!("Connect:{request:#?}");
                                 $connect(request, &setting, utility_thread)
                             },
                             Method::Options { .. } => {
-                                trace!("Options");
+                                trace!("Options:{request:#?}");
                                 $options(request, &setting, utility_thread)
                             },
                             Method::Trace { .. } => {
-                                trace!("Trace");
+                                trace!("Trace:{request:#?}");
                                 $trace(request, &setting, utility_thread)
                             },
                             Method::Patch { .. } => {
-                                trace!("Patch");
+                                trace!("Patch:{request:#?}");
                                 $patch(request, &setting, utility_thread)
                             },
                         }
                     },
                     Err(err_code) => {
-                        trace!("Error");
+                        trace!("Error:{err_code:?}");
                         return Ok(
                             $err(err_code, setting, utility_thread)
                         )
