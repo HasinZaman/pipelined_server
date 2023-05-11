@@ -4,11 +4,7 @@ use log::error;
 
 use crate::http::{request::Request, response::response_status_code::ResponseStatusCode};
 
-// todo!() add constants to server settings
-const PACKET_TIMEOUT: u128 = 20;
-const READ_TIMEOUT: u64 = 500;
-
-pub fn parser<const BUFFER_SIZE: usize, const MAX_SIZE: usize>(
+pub fn parser<const BUFFER_SIZE: usize, const MAX_SIZE: usize, const PACKET_TIMEOUT: u128, const READ_TIMEOUT: u64>(
     stream: &mut TcpStream,
 ) -> Result<Request, ResponseStatusCode> {
 
