@@ -176,7 +176,7 @@ mod parser {
         {
             let mut stream = listener.incoming().next().unwrap().unwrap();
 
-            let actual = parser::<100, 500, 20, 250>(&mut stream);
+            let actual = parser::parser::<100, 500, 20, 250>(&mut stream);
 
             assert_eq!(
                 Ok(Request(
@@ -224,7 +224,7 @@ mod parser {
         {
             let mut stream = listener.incoming().next().unwrap().unwrap();
 
-            let actual = parser::<5, 5, 20, 250>(&mut stream);
+            let actual = parser::parser::<5, 5, 20, 250>(&mut stream);
 
             assert_eq!(Err(ResponseStatusCode::PayloadTooLarge), actual);
         }
@@ -264,7 +264,7 @@ mod parser {
         {
             let mut stream = listener.incoming().next().unwrap().unwrap();
 
-            let actual = parser::<10, 100, 20, 250>(&mut stream);
+            let actual = parser::parser::<10, 100, 20, 250>(&mut stream);
 
             assert_eq!(Err(ResponseStatusCode::PayloadTooLarge), actual);
         }
@@ -304,7 +304,7 @@ mod parser {
         {
             let mut stream = listener.incoming().next().unwrap().unwrap();
 
-            let actual = parser::<100, 500, 20, 250>(&mut stream);
+            let actual = parser::parser::<100, 500, 20, 250>(&mut stream);
 
             assert_eq!(Err(ResponseStatusCode::BadRequest), actual);
         }
