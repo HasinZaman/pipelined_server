@@ -153,7 +153,7 @@ mod request_test{
                 Arc::clone(&pair),
                 |stream: &mut TcpStream| {
                     trace!("Starting parsing 📄🔍");
-                    let data = default::parser::<64, 1024>(stream);
+                    let data = default::parser::<64, 1024, 20, 250>(stream);
                     trace!("Finished parsing 📄🔍\n{:?}", data);
 
                     data
@@ -242,7 +242,7 @@ mod request_test{
                 Arc::clone(&pair),
                 |stream: &mut TcpStream| {
                     trace!("Starting parsing 📄🔍");
-                    let data = default::parser::<64, 1024>(stream);
+                    let data = default::parser::<64, 1024, 20, 250>(stream);
                     trace!("Finished parsing 📄🔍\n{:?}", data);
 
                     data
@@ -353,7 +353,7 @@ mod request_test{
                 Arc::clone(&pair),
                 |stream: &mut TcpStream| {
                     trace!("Starting parsing 📄🔍");
-                    let data = default::parser::<64, 1024>(stream);
+                    let data = default::parser::<64, 1024, 20, 250>(stream);
                     trace!("Finished parsing 📄🔍\n{:?}", data);
 
                     data
@@ -392,7 +392,7 @@ mod request_test{
                 let mut stream = TcpStream::connect(format!("{}:{}", ADDRESS, PORT)).unwrap();
 
                 let _ = stream.write(b"GET file_1.html HTTP/1.1\n\rhost:localhost");
-
+                //stream.shutdown(Shutdown::Write);
                 
                 trace!("Request sent 💽 📃💨 💻");
 
@@ -443,7 +443,7 @@ mod request_test{
                 Arc::clone(&pair),
                 |stream: &mut TcpStream| {
                     trace!("Starting parsing 📄🔍");
-                    let data = default::parser::<64, 1024>(stream);
+                    let data = default::parser::<64, 1024, 20, 250>(stream);
                     trace!("Finished parsing 📄🔍\n{:?}", data);
 
                     data
@@ -548,7 +548,7 @@ mod request_test{
             Arc::clone(&pair),
             |stream: &mut TcpStream| {
                 trace!("Starting parsing 📄🔍");
-                let data = default::parser::<64, 1024>(stream);
+                let data = default::parser::<64, 1024, 20, 250>(stream);
                 trace!("Finished parsing 📄🔍\n{:?}", data);
 
                 data
@@ -679,7 +679,7 @@ mod compression_test{
             Arc::clone(&pair),
             |stream: &mut TcpStream| {
                 trace!("Starting parsing 📄🔍");
-                let data = default::parser::<64, 1024>(stream);
+                let data = default::parser::<64, 1024, 20, 250>(stream);
                 trace!("Finished parsing 📄🔍\n{:?}", data);
 
                 data
@@ -753,7 +753,7 @@ mod compression_test{
             Arc::clone(&pair),
             |stream: &mut TcpStream| {
                 trace!("Starting parsing 📄🔍");
-                let data = default::parser::<64, 1024>(stream);
+                let data = default::parser::<64, 1024, 20, 250>(stream);
                 trace!("Finished parsing 📄🔍\n{:?}", data);
 
                 data
@@ -847,7 +847,7 @@ mod compression_test{
             Arc::clone(&pair),
             |stream: &mut TcpStream| {
                 trace!("Starting parsing 📄🔍");
-                let data = default::parser::<64, 1024>(stream);
+                let data = default::parser::<64, 1024, 20, 250>(stream);
                 trace!("Finished parsing 📄🔍\n{:?}", data);
 
                 data
@@ -941,7 +941,7 @@ mod compression_test{
             Arc::clone(&pair),
             |stream: &mut TcpStream| {
                 trace!("Starting parsing 📄🔍");
-                let data = default::parser::<64, 1024>(stream);
+                let data = default::parser::<64, 1024, 20, 250>(stream);
                 trace!("Finished parsing 📄🔍\n{:?}", data);
 
                 data
@@ -1067,7 +1067,7 @@ mod error_recovery_test{
                 Arc::clone(&pair),
                 |stream: &mut TcpStream| {
                     trace!("Starting parsing 📄🔍");
-                    let data = default::parser::<64, 1024>(stream);
+                    let data = default::parser::<64, 1024, 20, 250>(stream);
 
                     if let Ok(Request(Method::Get { file }, _)) = &data {
                         if file == "request_2.html" {
@@ -1166,7 +1166,7 @@ mod error_recovery_test{
                 Arc::clone(&pair),
                 |stream: &mut TcpStream| {
                     trace!("Starting parsing 📄🔍");
-                    let data = default::parser::<64, 1024>(stream);
+                    let data = default::parser::<64, 1024, 20, 250>(stream);
                     trace!("Finished parsing 📄🔍\n{:?}", data);
 
                     data
@@ -1263,7 +1263,7 @@ mod error_recovery_test{
                 Arc::clone(&pair),
                 |stream: &mut TcpStream| {
                     trace!("Starting parsing 📄🔍");
-                    let data = default::parser::<64, 1024>(stream);
+                    let data = default::parser::<64, 1024, 20, 250>(stream);
                     trace!("Finished parsing 📄🔍\n{:?}", data);
 
                     data
