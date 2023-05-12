@@ -100,7 +100,7 @@ pub fn single_read_parser<const MAX_SIZE: usize, const READ_TIMEOUT: u64>(stream
             match Request::from_str(&request_str) {
                 Ok(request) => Ok(request),
                 Err(err) => {
-                    error!("Failed to convert str to request:{err:#?}");
+                    error!("Failed to convert str to request:{err:#?}\t{request_str:#?}");
                     Err(ResponseStatusCode::BadRequest)
                 },
             }
